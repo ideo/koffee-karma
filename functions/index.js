@@ -44,12 +44,8 @@ import { leaderboardHandler } from './handlers/leaderboard-handler.js';
 import { eventHandler } from './handlers/event-handler.js';
 import { redeemHandler } from './handlers/redeem-handler.js';
 
-if (admin.apps.length === 0) {
-  admin.initializeApp();
-  logger.info('Firebase Admin SDK initialized.');
-} else {
-  logger.debug('Firebase Admin SDK already initialized.');
-}
+// Initialize Firebase Admin SDK - THIS SHOULD BE DONE ONCE, IDEALLY IN firebase.js
+// admin.initializeApp(); // <<< REMOVE THIS LINE
 
 // --- Lazy Initialization for Slack App ---
 let _slackApp;
