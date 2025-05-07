@@ -48,32 +48,24 @@ jobs:
         run: npm ci
         working-directory: ./functions
 
-      # Set Firebase Functions runtime config for DEV
-      - name: Set Firebase Functions Config (Dev)
-        if: (github.event_name == 'pull_request' && github.base_ref == 'dev') || (github.event_name == 'push' && github.ref == 'refs/heads/dev')
-        run: |
-          firebase functions:config:set slack.bot_token="${{ secrets.SLACK_BOT_TOKEN_DEV }}" slack.signing_secret="${{ secrets.SLACK_SIGNING_SECRET_DEV }}" koffee_karma.channel_id="${{ secrets.KOFFEE_KARMA_CHANNEL_ID_DEV }}" --project ${{ env.FIREBASE_PROJECT_ID_DEV }}
-          firebase functions:config:get --project ${{ env.FIREBASE_PROJECT_ID_DEV }} # To verify in logs
-
       # Deploy to DEV environment (handles both PR to dev and push to dev)
       - name: Deploy to Firebase (Dev)
         if: (github.event_name == 'pull_request' && github.base_ref == 'dev') || (github.event_name == 'push' && github.ref == 'refs/heads/dev')
         run: |
-          echo "Attempting to deploy to DEV project: ${{ env.FIREBASE_PROJECT_ID_DEV }}"
+          echo "Attempting to deploy to DEV project: ${{ env.FIREBASE_PROJECT_ID_DEV }} with environment variables..."
+          SLACK_BOT_TOKEN="${{ secrets.SLACK_BOT_TOKEN_DEV }}" \
+          SLACK_SIGNING_SECRET="${{ secrets.SLACK_SIGNING_SECRET_DEV }}" \
+          KOFFEE_KARMA_CHANNEL_ID="${{ secrets.KOFFEE_KARMA_CHANNEL_ID_DEV }}" \
           firebase deploy --only functions --project ${{ env.FIREBASE_PROJECT_ID_DEV }} --non-interactive --force
-
-      # Set Firebase Functions runtime config for PROD
-      - name: Set Firebase Functions Config (Prod)
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: |
-          firebase functions:config:set slack.bot_token="${{ secrets.SLACK_BOT_TOKEN_PROD }}" slack.signing_secret="${{ secrets.SLACK_SIGNING_SECRET_PROD }}" koffee_karma.channel_id="${{ secrets.KOFFEE_KARMA_CHANNEL_ID_PROD }}" --project ${{ env.FIREBASE_PROJECT_ID_PROD }}
-          firebase functions:config:get --project ${{ env.FIREBASE_PROJECT_ID_PROD }} # To verify in logs
 
       # Deploy to PROD environment (handles push to main)
       - name: Deploy to Firebase (Prod)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
-          echo "Attempting to deploy to PROD project: ${{ env.FIREBASE_PROJECT_ID_PROD }}"
+          echo "Attempting to deploy to PROD project: ${{ env.FIREBASE_PROJECT_ID_PROD }} with environment variables..."
+          SLACK_BOT_TOKEN="${{ secrets.SLACK_BOT_TOKEN_PROD }}" \
+          SLACK_SIGNING_SECRET="${{ secrets.SLACK_SIGNING_SECRET_PROD }}" \
+          KOFFEE_KARMA_CHANNEL_ID="${{ secrets.KOFFEE_KARMA_CHANNEL_ID_PROD }}" \
           firebase deploy --only functions --project ${{ env.FIREBASE_PROJECT_ID_PROD }} --non-interactive --force
       
       # No longer need to manually cleanup serviceAccountKey.json as it's not written to disk by this auth method

@@ -1,45 +1,51 @@
 /**
- * Configuration Utility
- * Provides a consistent way to access environment variables FOR DEPLOYED FUNCTIONS.
- * For local emulation, ensure your .env files or emulators are configured correctly
- * to populate functions.config() or use a different local config strategy.
+ * Configuration Utility for Firebase Functions v2 (using Params)
  */
-import functions from 'firebase-functions';
+import { defineString, defineSecret } from 'firebase-functions/params';
 
-// Removed defineString for these, as we'll rely on functions.config()
-// set by the CI/CD pipeline.
+// Define parameters using v2 SDK. These are resolved at deployment time
+// from environment variables available to the 'firebase deploy' command.
+// Use defineSecret for sensitive values.
+const SLACK_BOT_TOKEN = defineSecret('SLACK_BOT_TOKEN'); // Use defineSecret
+const SLACK_SIGNING_SECRET = defineSecret('SLACK_SIGNING_SECRET'); // Use defineSecret
+const KOFFEE_KARMA_CHANNEL_ID = defineString('KOFFEE_KARMA_CHANNEL_ID'); // defineString is okay for non-secrets
 
 export const getConfig = (key, fallback = null) => {
-  const config = functions.config();
-  let value;
-
-  // Access values directly based on how they are set by `firebase functions:config:set`
+  let param;
   switch (key) {
     case 'SLACK_BOT_TOKEN':
-      value = config.slack ? config.slack.bot_token : undefined;
+      param = SLACK_BOT_TOKEN;
       break;
     case 'SLACK_SIGNING_SECRET':
-      value = config.slack ? config.slack.signing_secret : undefined;
+      param = SLACK_SIGNING_SECRET;
       break;
     case 'KOFFEE_KARMA_CHANNEL_ID':
-      value = config.koffee_karma ? config.koffee_karma.channel_id : undefined;
+      param = KOFFEE_KARMA_CHANNEL_ID;
       break;
     default:
-      // For any other keys, you might still want a process.env fallback or warning
-      console.warn(`[config] Unknown or non-standard config key requested: ${key}. Trying process.env.`);
-      value = process.env[key]; // Fallback for other potential env vars
-      break;
+      // For parameters not explicitly defined, maybe fallback to process.env
+      // But it's better to define all required params.
+      console.warn(`[config] Unknown config key requested via getConfig: ${key}. Consider defining it as a parameter.`);
+      return process.env[key] || fallback; // Or just return fallback
   }
 
-  if (value !== undefined) {
+  try {
+    // .value() accesses the resolved parameter value
+    const value = param.value();
+    // defineSecret might return a SecretValue object, handle if necessary
+    // but usually .value() gives the string directly in the function runtime.
+    // However, check if we get the expected value type.
+    if (typeof value !== 'string') {
+        console.warn(`[config] Parameter ${key} resolved to non-string type: ${typeof value}. Check parameter definition and deployment environment.`);
+        // Fallback if the resolved value isn't usable?
+         return process.env[key] || fallback;
+    }
     return value;
+  } catch (e) {
+    // This happens if the parameter isn't set during deployment and has no default
+    console.error(`[config] FATAL: Failed to get value for required parameter ${key}. Ensure it's set as an environment variable during deployment (e.g., MY_VAR=value firebase deploy). Error: ${e.message}`);
+    // Fallback or throw? Critical params should probably cause failure.
+    // return process.env[key] || fallback; // Avoid returning fallback for critical missing params
+     throw new Error(`Missing required configuration parameter: ${key}`);
   }
-
-  // Only log warning and use fallback if specifically not found via the known paths
-  if (['SLACK_BOT_TOKEN', 'SLACK_SIGNING_SECRET', 'KOFFEE_KARMA_CHANNEL_ID'].includes(key)) {
-    console.warn(`[config] Crucial key ${key} not found in functions.config(). Check CI/CD setup and 'firebase functions:config:set' commands.`);
-  } else {
-    console.warn(`[config] Value for key ${key} not found.`)
-  }
-  return fallback;
 }; 
