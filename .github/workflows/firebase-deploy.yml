@@ -16,8 +16,7 @@ jobs:
     env:
       FIREBASE_PROJECT_ID_PROD: koffee-karma
       FIREBASE_PROJECT_ID_DEV: koffee-karma-dev
-      # Path where the service account key will be written
-      GOOGLE_APPLICATION_CREDENTIALS: ${{ github.workspace }}/serviceAccountKey.json
+      # GOOGLE_APPLICATION_CREDENTIALS is set by google-github-actions/auth
 
     steps:
       - name: Checkout code
@@ -27,6 +26,20 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+
+      # Authenticate to Google Cloud (for Dev)
+      - name: Authenticate to Google Cloud (Dev)
+        if: (github.event_name == 'pull_request' && github.base_ref == 'dev') || (github.event_name == 'push' && github.ref == 'refs/heads/dev')
+        uses: 'google-github-actions/auth@v2'
+        with:
+          credentials_json: '${{ secrets.FIREBASE_SA_DEV }}'
+
+      # Authenticate to Google Cloud (for Prod)
+      - name: Authenticate to Google Cloud (Prod)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: 'google-github-actions/auth@v2'
+        with:
+          credentials_json: '${{ secrets.FIREBASE_SA_PROD }}'
 
       - name: Install Firebase CLI
         run: npm install -g firebase-tools
@@ -38,69 +51,15 @@ jobs:
       # Deploy to DEV environment (handles both PR to dev and push to dev)
       - name: Deploy to Firebase (Dev)
         if: (github.event_name == 'pull_request' && github.base_ref == 'dev') || (github.event_name == 'push' && github.ref == 'refs/heads/dev')
-        env:
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ github.workspace }}/serviceAccountKey.json
         run: |
-          echo "Attempting to write DEV service account key to ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}"
-          echo "${{ secrets.FIREBASE_SA_DEV }}" > ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
-          
-          echo "Verifying DEV service account key file..."
-          ls -l ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
-          if [ ! -s ${{ env.GOOGLE_APPLICATION_CREDENTIALS }} ]; then
-            echo "Error: DEV Service account key file is empty or does not exist."
-            exit 1
-          fi
-          echo "DEV Service account key file exists and is not empty. First line:"
-          head -n 1 ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
-          
-          echo "Exporting GOOGLE_APPLICATION_CREDENTIALS: ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}"
-          export GOOGLE_APPLICATION_CREDENTIALS="${{ env.GOOGLE_APPLICATION_CREDENTIALS }}"
-          
-          echo "Attempting logout (should indicate not logged in)..."
-          firebase logout
-          
-          echo "Verifying Firebase CLI authentication with service account..."
-          firebase projects:list
-          
-          echo "Verifying gcloud CLI authentication with service account (if gcloud is available)..."
-          gcloud auth list || echo "gcloud CLI not available or not authenticated"
-          
           echo "Attempting to deploy to DEV project: ${{ env.FIREBASE_PROJECT_ID_DEV }}"
           firebase deploy --only functions --project ${{ env.FIREBASE_PROJECT_ID_DEV }} --non-interactive --force
 
       # Deploy to PROD environment (handles push to main)
       - name: Deploy to Firebase (Prod)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        env:
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ github.workspace }}/serviceAccountKey.json
         run: |
-          echo "Attempting to write PROD service account key to ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}"
-          echo "${{ secrets.FIREBASE_SA_PROD }}" > ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
-
-          echo "Verifying PROD service account key file..."
-          ls -l ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
-          if [ ! -s ${{ env.GOOGLE_APPLICATION_CREDENTIALS }} ]; then
-            echo "Error: PROD Service account key file is empty or does not exist."
-            exit 1
-          fi
-          echo "PROD Service account key file exists and is not empty. First line:"
-          head -n 1 ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
-          
-          echo "Exporting GOOGLE_APPLICATION_CREDENTIALS: ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}"
-          export GOOGLE_APPLICATION_CREDENTIALS="${{ env.GOOGLE_APPLICATION_CREDENTIALS }}"
-          
-          echo "Attempting logout (should indicate not logged in)..."
-          firebase logout
-          
-          echo "Verifying Firebase CLI authentication with service account..."
-          firebase projects:list
-
-          echo "Verifying gcloud CLI authentication with service account (if gcloud is available)..."
-          gcloud auth list || echo "gcloud CLI not available or not authenticated"
-          
           echo "Attempting to deploy to PROD project: ${{ env.FIREBASE_PROJECT_ID_PROD }}"
           firebase deploy --only functions --project ${{ env.FIREBASE_PROJECT_ID_PROD }} --non-interactive --force
       
-      - name: Cleanup Service Account Key
-        if: always() # Ensures this step runs even if previous steps fail
-        run: rm -f ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
+      # No longer need to manually cleanup serviceAccountKey.json as it's not written to disk by this auth method
