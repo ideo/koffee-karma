@@ -1,0 +1,258 @@
+{
+  "nw_studio": {
+    "x": 1,
+    "y": 2
+  },
+  "the_courtyard": {
+    "x": 5,
+    "y": 1
+  },
+  "4a": {
+    "x": 5,
+    "y": 0
+  },
+  "4b": {
+    "x": 6,
+    "y": 0
+  },
+  "4c": {
+    "x": 7,
+    "y": 0
+  },
+  "4d": {
+    "x": 7,
+    "y": 1
+  },
+  "4e": {
+    "x": 6,
+    "y": 2
+  },
+  "4f": {
+    "x": 5,
+    "y": 2
+  },
+  "sugar_cube_1": {
+    "x": 9,
+    "y": 0
+  },
+  "sugar_cube_2": {
+    "x": 9,
+    "y": 1
+  },
+  "sugar_cube_3": {
+    "x": 9,
+    "y": 2
+  },
+  "sugar_cube_4": {
+    "x": 9,
+    "y": 3
+  },
+  "shipping_receiving": {
+    "x": 7,
+    "y": 3
+  },
+  "cherry_pit": {
+    "x": 12,
+    "y": 1
+  },
+  "hive": {
+    "x": 12,
+    "y": 2
+  },
+  "honey": {
+    "x": 12,
+    "y": 3
+  },
+  "the_scoop": {
+    "x": 15,
+    "y": 2
+  },
+  "the_jelly": {
+    "x": 15,
+    "y": 3
+  },
+  "the_crumb": {
+    "x": 16,
+    "y": 1
+  },
+  "cavity_1": {
+    "x": 16,
+    "y": 0
+  },
+  "cavity_2": {
+    "x": 16,
+    "y": 0
+  },
+  "the_cookie_jar": {
+    "x": 17,
+    "y": 0
+  },
+  "cafe_booths": {
+    "x": 19,
+    "y": 1
+  },
+  "the_lookout": {
+    "x": 24,
+    "y": 1
+  },
+  "cafe": {
+    "x": 19,
+    "y": 3
+  },
+  "the_jam": {
+    "x": 17,
+    "y": 3
+  },
+  "technology": {
+    "x": 5,
+    "y": 4
+  },
+  "restrooms": {
+    "x": 7,
+    "y": 5
+  },
+  "4h": {
+    "x": 4,
+    "y": 5
+  },
+  "vista_1": {
+    "x": 2,
+    "y": 7
+  },
+  "vista_2": {
+    "x": 1,
+    "y": 7
+  },
+  "vista_3": {
+    "x": 0,
+    "y": 7
+  },
+  "redwood_1": {
+    "x": 8,
+    "y": 7
+  },
+  "redwood_2": {
+    "x": 7,
+    "y": 7
+  },
+  "redwood_3": {
+    "x": 6,
+    "y": 7
+  },
+  "redwood_4": {
+    "x": 5,
+    "y": 7
+  },
+  "4i": {
+    "x": 0,
+    "y": 9
+  },
+  "4j": {
+    "x": 1,
+    "y": 9
+  },
+  "4k": {
+    "x": 5,
+    "y": 9
+  },
+  "4l": {
+    "x": 6,
+    "y": 9
+  },
+  "4m": {
+    "x": 7,
+    "y": 9
+  },
+  "redwood_booths": {
+    "x": 10,
+    "y": 8
+  },
+  "lactation_lounge": {
+    "x": 13,
+    "y": 7
+  },
+  "sw_studio": {
+    "x": 5,
+    "y": 11
+  },
+  "beach_1": {
+    "x": 15,
+    "y": 7
+  },
+  "beach_2": {
+    "x": 14,
+    "y": 7
+  },
+  "digital_dream_lab": {
+    "x": 17,
+    "y": 7
+  },
+  "elevator": {
+    "x": 13,
+    "y": 4
+  },
+  "mini_shop": {
+    "x": 18,
+    "y": 5
+  },
+  "4n": {
+    "x": 13,
+    "y": 9
+  },
+  "4o": {
+    "x": 14,
+    "y": 9
+  },
+  "4p": {
+    "x": 15,
+    "y": 9
+  },
+  "prototyping_kitchen": {
+    "x": 17,
+    "y": 9
+  },
+  "theater": {
+    "x": 23,
+    "y": 5
+  },
+  "av_closet": {
+    "x": 23,
+    "y": 7
+  },
+  "facilities_storage": {
+    "x": 24,
+    "y": 7
+  },
+  "4q": {
+    "x": 23,
+    "y": 9
+  },
+  "spray_booth": {
+    "x": 25,
+    "y": 9
+  },
+  "play_lab_photo_studio": {
+    "x": 14,
+    "y": 10
+  },
+  "cork_canyon": {
+    "x": 13,
+    "y": 11
+  },
+  "production_shop_storage": {
+    "x": 14,
+    "y": 12
+  },
+  "play_lab": {
+    "x": 19,
+    "y": 11
+  },
+  "production": {
+    "x": 17,
+    "y": 11
+  },
+  "shop": {
+    "x": 22,
+    "y": 10
+  }
+} 

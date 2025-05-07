@@ -1,0 +1,31 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Allow Cloud Functions (using Admin SDK) to have full access
+    allow read, write: if request.auth.token.firebase.sign_in_provider == 'google.com';
+    
+    // Players collection rules
+    match /players/{playerId} {
+      allow read: if request.auth != null;
+      allow write: if false; // Only allow writes through Cloud Functions
+    }
+    
+    // Orders collection rules
+    match /orders/{orderId} {
+      allow read: if request.auth != null;
+      allow write: if false; // Only allow writes through Cloud Functions
+    }
+    
+    // Redemption codes collection rules
+    match /redemptionCodes/{codeId} {
+      allow read: if request.auth != null;
+      allow write: if false; // Only allow writes through Cloud Functions
+    }
+
+    // Default deny all other access
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+} 

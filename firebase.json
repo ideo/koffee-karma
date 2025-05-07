@@ -1,0 +1,41 @@
+{
+  "functions": {
+    "source": "functions",
+    "predeploy": [],
+    "runtime": "nodejs20",
+    "codebase": "default",
+    "ignore": [
+      "node_modules",
+      ".git",
+      "firebase-debug.log",
+      "firebase-debug.*.log"
+    ]
+  },
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "emulators": {
+    "functions": {
+      "port": 5002
+    },
+    "firestore": {
+      "port": 8082
+    },
+    "pubsub": {
+      "port": 8087
+    },
+    "database": {
+      "port": 9002
+    },
+    "hub": {
+      "port": 4402
+    },
+    "ui": {
+      "port": 4002
+    },
+    "logging": {
+      "port": 4502
+    }
+  }
+}

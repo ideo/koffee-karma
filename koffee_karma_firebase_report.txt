@@ -1,0 +1,189 @@
+# Koffee Karma Firebase - Project Status Report
+
+## 1. Project Overview
+
+**Purpose:** A Slack bot to facilitate peer-to-peer coffee ordering and delivery within an office environment, gamified with a "Karma" point system. This project is a migration/re-implementation of a previous Python/Google Sheets version to Firebase Functions (Node.js) and Firestore.
+
+**Target Environment:** Slack workspace.
+
+## 2. Core Concepts
+
+*   **Karma:** Point system. Earned by delivering, spent by ordering. Used for ranking.
+*   **Player Title:** Rank based on Karma amount (defined in `constants.js`).
+*   **Order Statuses:** (Defined in `constants.js` - adapted from original)
+    *   `ordered`: Initial state after `/order` submission.
+    *   `offered`: State after `/deliver` submission (runner available).
+    *   `claimed`: Runner committed to delivering an order.
+    *   `delivered`: Order completed.
+    *   `expired`: Order/Offer timed out.
+    *   `cancelled`: Order/Offer manually cancelled.
+    *   `failed`: Internal processing error.
+*   **Timers:** (Concept exists from original, **NOT IMPLEMENTED** yet in Firebase version) Intended to handle expiration of orders and delivery offers.
+
+## 3. Technical Architecture
+
+*   **Platform:** Firebase (Cloud Functions V2 `onRequest`, Firestore Database).
+*   **Language:** Node.js (JavaScript with ES Modules).
+*   **Core Libraries:**
+    *   `@slack/bolt`: Framework for Slack app development (handling commands, actions, views, events). Used with `ExpressReceiver`.
+    *   `firebase-admin`: Firebase SDK for backend operations (Firestore interaction).
+    *   `firebase-functions`: Firebase Functions SDK.
+    *   `express`: Web framework used to integrate Bolt's `ExpressReceiver` with Firebase Functions V2 `onRequest`.
+    *   `dotenv`: Loading environment variables from `.env`.
+*   **Data Storage:** Firestore NoSQL Database.
+    *   `players` collection: Stores user data.
+    *   `orders` collection: Intended to store order/delivery offer data (**partially defined, creation not implemented**).
+*   **Configuration:**
+    *   `.env` file at `functions/` root: Stores secrets like `SLACK_BOT_TOKEN`, `SLACK_SIGNING_SECRET`, `KOFFEE_KARMA_CHANNEL_ID`.
+    *   `functions/utils/config.js`: `getConfig` utility function to safely retrieve environment variables.
+*   **Key Modules/Files:**
+    *   `functions/index.js`: Main entry point. Initializes Firebase Admin, Bolt App, ExpressReceiver. Mounts middleware (payload unpacking). Registers command/action/view handlers. Exports the main `slack` Cloud Function.
+    *   `functions/handlers/`: Directory containing specific handlers for commands/events (e.g., `karma-handler.js`, `order-handler.js`). Currently, only these two seem actively used/partially implemented. Others (`delivery`, `leaderboard`, `redeem`, `events`) are likely placeholders or commented out.
+    *   `functions/utils/`: Contains helper modules.
+        *   `config.js`: Environment variable access.
+        *   `constants.js`: Shared constants (locations, categories, titles, statuses, etc.).
+        *   `database.js`: Firestore interaction functions (`getPlayerBySlackId`, `getOrCreatePlayer`, title calculation).
+        *   `message-formatter.js`: Functions to build Slack message blocks (including `generateMap`).
+        *   `modal-builder.js`: Functions to build Slack modal views (`buildOrderModal`, `update_modal_map`).
+    *   `assets/`: Directory (at project root) containing static assets.
+        *   `map_template.txt`: Base ASCII map layout.
+        *   `map_coordinates.json`: JSON mapping location keys (e.g., `nw_studio`) to X/Y coordinates for the map. Keys updated to `lowercase_underscore` format.
+
+## 4. Data Models (Firestore)
+
+*   **`players` Collection:**
+    *   *Document ID:* Slack User ID (e.g., `U02EY5S5J0M`).
+    *   *Fields (observed/implemented):*
+        *   `slackId`: (string) User's Slack ID.
+        *   `name`: (string) User's Slack display name.
+        *   `karma`: (number) Current Karma points.
+        *   `title`: (string) Current title based on Karma.
+    *   *Fields (potential/from Handoff):* `capabilities` (array or string?), `location` (string?).
+    *   *Related Functions:* `getPlayerBySlackId`, `getOrCreatePlayer`, `calculatePlayerTitle` (in `database.js`).
+*   **`orders` Collection:**
+    *   *Document ID:* Intended to be unique order ID (e.g., Firestore auto-ID).
+    *   *Fields (intended/based on Handoff & logic):*
+        *   `orderId`: (string) Unique ID.
+        *   `timestamp` / `timeOrdered`: (Timestamp) Time of submission.
+        *   `initiatedBy`: (string) 'requester' (or 'runner' for `/deliver`).
+        *   `requesterId`: (string) Slack ID of order placer.
+        *   `requesterName`: (string) Name of order placer.
+        *   `runnerId`: (string) Slack ID of deliverer (null initially).
+        *   `runnerName`: (string) Name of deliverer (null initially).
+        *   `recipientId`: (string) Slack ID of recipient (optional, null if self).
+        *   `recipientName`: (string) Name of recipient (optional).
+        *   `category`: (string) Drink category key (e.g., 'TEA', 'ESPRESSO').
+        *   `drink`: (string) Drink details text.
+        *   `locationKey`: (string) Location key (e.g., 'nw_studio').
+        *   `notes`: (string) Optional notes.
+        *   `karmaCost`: (number) Calculated cost.
+        *   `status`: (string) Initial status `ORDER_STATUS.ORDERED`.
+        *   `bonusMultiplier`: (number) Null initially.
+        *   `timeClaimed`: (Timestamp) Null initially.
+        *   `timeDelivered`: (Timestamp) Null initially.
+        *   `messageTs`: (string) Slack timestamp of the posted order message (updated post-posting).
+        *   `channelId`: (string) Slack channel ID of the posted order message (updated post-posting).
+        *   `expiryTimestamp`: (Timestamp) Calculated expiration time (**timer logic TBD**).
+    *   *Related Functions:* **Order creation/update functions (`addOrder`, `updateOrder`, etc.) are NOT YET IMPLEMENTED in `database.js`.**
+
+## 5. Slash Commands & User Flows
+
+*   **`/order`:**
+    *   **Trigger:** User types `/order`.
+    *   **Handler:** Registered in `order-handler.js`, called from `index.js`.
+    *   **Action:** Calls `client.views.open` with the payload from `buildOrderModal`.
+    *   **Modal (`koffee_request_modal`):**
+        *   Displays fields for Category, Drink Details, Location, Map, Recipient (optional), Notes (optional).
+        *   **Initial State:** Category and Location dropdowns are blank. Map displays without 'X' marker. (**Working**)
+        *   **Location Selection (`location_select` action):**
+            *   Handled by `app.action` listener in `index.js`.
+            *   Calls `generateMap` with the selected location key.
+            *   Calls `update_modal_map` to get the updated view definition.
+            *   Calls `client.views.update` to refresh the modal with the updated map. (**Working**)
+        *   **Category Selection (`drink_category_select` action):**
+            *   Handled by `app.action` listener in `index.js`.
+            *   Currently just calls `ack()` to prevent timeout errors. (**Working**)
+        *   **Submission (`view_submission` event):**
+            *   Handled by generic `app.view({ type: 'view_submission' }, ...)` listener in `index.js`, which checks `view.callback_id === 'koffee_request_modal'`. (**Workaround for potential Bolt routing issue**)
+            *   **Validation:** Checks if Category and Location dropdowns have a selected value.
+                *   If validation fails, calls `ack({ response_action: 'update', view: ... })` to redraw the modal with context blocks containing error messages below the relevant sections. (**Working**)
+                *   If validation passes, calls plain `ack()` to close the modal. Extracts submitted values and logs them. (**Working**)
+            *   **Order Processing:** **NOT IMPLEMENTED.** TODO list includes: Karma cost calculation, checking requester Karma balance, deducting Karma, creating Firestore order record, posting message, updating record with message details, scheduling timer.
+
+*   **`/karma`:**
+    *   **Trigger:** User types `/karma`.
+    *   **Handler:** Registered in `karma-handler.js`, called from `index.js`.
+    *   **Action:** Calls `getPlayerBySlackId` from `database.js`.
+    *   **Database Logic:** Fetches player document from Firestore `players` collection by Slack ID. Retrieves `karma`. Retrieves `title` or calculates it using `calculatePlayerTitle` based on `karma` and `TITLES` constant.
+    *   **Response:** Sends an ephemeral message to the user displaying their Karma balance and Title. (**Working**)
+
+*   **`/deliver`:**
+    *   Handler (`deliveryHandler`) is likely defined but appears commented out in `index.js` registration.
+    *   Modal (`buildDeliveryModal`) exists in `modal-builder.js`.
+    *   **NOT FUNCTIONAL.**
+
+*   **`/leaderboard`:**
+    *   Handler (`leaderboardHandler`) is likely defined but appears commented out in `index.js` registration.
+    *   Formatting logic (`formatLeaderboard`) exists in `message-formatter.js`.
+    *   Requires Firestore query implementation to fetch and sort players by karma.
+    *   **NOT FUNCTIONAL.**
+
+*   **`/redeem`:**
+    *   Handler (`redeemHandler`) is likely defined but appears commented out in `index.js` registration.
+    *   Requires Firestore implementation for checking/marking redemption codes and updating player karma.
+    *   **NOT FUNCTIONAL.**
+
+## 6. Key Utilities & Logic
+
+*   **`functions/utils/constants.js`:**
+    *   `DRINK_CATEGORIES`: Object mapping category keys (e.g., `TEA`) to display text ("Tea"). Used for modal options and potentially Karma cost.
+    *   `LOCATIONS`: Object mapping location keys (e.g., `nw_studio`) to display text ("NW Studio"). Used for modal options and map generation.
+    *   `DELIVERY_DURATIONS`: Array of objects defining available runner durations (text/value). Used in `/deliver` modal.
+    *   `TITLES`: Array of objects defining Karma thresholds and corresponding titles, ordered high-to-low. Used by `calculatePlayerTitle`. (**Updated**)
+    *   `ORDER_STATUS`: Object mapping status keys (e.g., `ORDERED`) to string values ("ordered").
+*   **`functions/utils/database.js`:**
+    *   `getFirestoreDb`: Helper to get Firestore instance.
+    *   `getPlayerBySlackId`: Fetches player doc, ensures `karma` is number, calculates title if missing. Includes detailed logging. (**Working**)
+    *   `getOrCreatePlayer`: Creates player doc if it doesn't exist. (**Assumed working, called by `/karma`**)
+    *   `calculatePlayerTitle`: Calculates title based on Karma and `TITLES` constant. (**Working**)
+    *   **MISSING:** Functions for adding orders, updating orders, updating player karma, handling redemption codes.
+*   **`functions/utils/message-formatter.js`:**
+    *   `formatTimer`: Generates countdown text/progress bar (likely unused currently).
+    *   `generateMap`: Reads `map_template.txt`, reads `map_coordinates.json`, places 'X' marker based on location key, formats map+legend string. (**Working**)
+    *   `formatOrderMessage`: Builds Slack blocks for order messages (uses `generateMap`, status). (**Partially implemented, needs testing post-submission**)
+    *   `formatRunnerMessage`: Builds Slack blocks for runner offers. (**Not tested**)
+    *   `formatLeaderboard`: Builds Slack blocks for leaderboard. (**Not tested**)
+    *   `postMessageToDesignatedChannel`: Helper to post messages using `KOFFEE_KARMA_CHANNEL_ID` from config. (**Helper exists**)
+    *   `updateMessage`: Helper for `client.chat.update`. (**Helper exists**)
+*   **`functions/utils/modal-builder.js`:**
+    *   `buildOrderModal`: Constructs the order modal view payload. Ensures no default location/category is selected. Includes empty map initially. (**Working**)
+    *   `buildDeliveryModal`: Constructs the delivery modal payload. (**Not tested**)
+    *   `update_modal_map`: Creates updated view payload for map refresh during `location_select` action. (**Working**)
+*   **`functions/index.js` Middleware:**
+    *   Payload Unpacking Middleware: Checks for `application/x-www-form-urlencoded` requests with a stringified `payload` field (common in Slack interactions) and parses the inner JSON into `req.body`. (**Crucial for interactions like `location_select`**)
+    *   Generic Bolt Middleware (`app.use`): Logs entry.
+    *   Global Error Handler (`app.error`): Catches uncaught Bolt errors and logs details.
+
+## 7. Current State Summary & Known Issues
+
+*   **Working:**
+    *   `/karma` command correctly fetches and displays user karma and title.
+    *   `/order` command opens the modal.
+    *   Order modal:
+        *   Loads with blank category/location dropdowns and map without 'X'.
+        *   Location dropdown selection correctly updates the map display (`views.update`).
+        *   Submission validation correctly identifies missing category/location and displays specific error messages using context blocks via `ack(update)`.
+    *   Firestore `players` collection reading/writing for karma/title seems functional.
+    *   Payload parsing for interaction events (`location_select`) is handled.
+*   **Not Implemented / Not Working:**
+    *   **Order Submission Processing:** The main logic after validating the `/order` modal is missing (Karma check/deduction, Firestore order creation, message posting, etc.). This is the next major implementation step.
+    *   Other Slash Commands (`/deliver`, `/leaderboard`, `/redeem`): Assumed non-functional, handlers likely need implementation/porting and registration.
+    *   Firestore `orders` collection logic (creation, updates).
+    *   Karma cost calculation.
+    *   Timer/Expiration Logic: No equivalent of the original APScheduler logic exists. Orders/Offers currently do not expire.
+    *   Welcome Messages/Onboarding: No evidence of this being implemented or tested.
+    *   Error Handling during Order Processing: Needs implementation within the TODO section.
+*   **Workarounds/Potential Issues:**
+    *   **View Submission Routing:** Required using a generic `app.view({ type: 'view_submission' }, ...)` listener instead of the specific `app.view('koffee_request_modal', ...)` due to an apparent Bolt routing issue when the first dropdown (Category) was unselected. This workaround is functional but indicates a potential fragility or upstream bug.
+
+This report reflects the state based on our debugging session. Significant parts of the original application logic still need to be implemented in the Firebase environment. 
