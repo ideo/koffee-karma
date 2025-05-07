@@ -1,46 +1,33 @@
 /**
  * Configuration Utility
- * Provides a consistent way to access environment variables
+ * Provides a consistent way to access environment variables FOR DEPLOYED FUNCTIONS.
+ * For local emulation, ensure your .env files or emulators are configured correctly
+ * to populate functions.config() or use a different local config strategy.
  */
-import functions from 'firebase-functions'; // Ensure this is imported
-import { defineString } from 'firebase-functions/params';
+import functions from 'firebase-functions';
 
-// Define parameters for potential use with CLI or local .env files
-// but primary access will be through functions.config() for deployed env.
-const SLACK_BOT_TOKEN_PARAM = defineString('SLACK_BOT_TOKEN');
-const SLACK_SIGNING_SECRET_PARAM = defineString('SLACK_SIGNING_SECRET');
-const KOFFEE_KARMA_CHANNEL_ID_PARAM = defineString('KOFFEE_KARMA_CHANNEL_ID');
+// Removed defineString for these, as we'll rely on functions.config()
+// set by the CI/CD pipeline.
 
-/**
- * Get configuration value using Firebase Params (V2 SDK).
- * Uses the value defined via `defineString` which loads from environment variables
- * (including .env files loaded via dotenv) or deployment-time configuration.
- * 
- * @param {string} key - The environment variable key (e.g., 'SLACK_BOT_TOKEN')
- * @param {string | null} [fallback=null] - The default value if the key is not found
- * @returns {string} The configuration value or the fallback
- */
 export const getConfig = (key, fallback = null) => {
   const config = functions.config();
   let value;
 
+  // Access values directly based on how they are set by `firebase functions:config:set`
   switch (key) {
     case 'SLACK_BOT_TOKEN':
-      // Prefer functions.config(), then param, then process.env for wider compatibility
-      value = config.slack && config.slack.bot_token !== undefined ? config.slack.bot_token :
-              (SLACK_BOT_TOKEN_PARAM.value ? SLACK_BOT_TOKEN_PARAM.value() : process.env.SLACK_BOT_TOKEN);
+      value = config.slack ? config.slack.bot_token : undefined;
       break;
     case 'SLACK_SIGNING_SECRET':
-      value = config.slack && config.slack.signing_secret !== undefined ? config.slack.signing_secret :
-              (SLACK_SIGNING_SECRET_PARAM.value ? SLACK_SIGNING_SECRET_PARAM.value() : process.env.SLACK_SIGNING_SECRET);
+      value = config.slack ? config.slack.signing_secret : undefined;
       break;
     case 'KOFFEE_KARMA_CHANNEL_ID':
-      value = config.koffee_karma && config.koffee_karma.channel_id !== undefined ? config.koffee_karma.channel_id :
-              (KOFFEE_KARMA_CHANNEL_ID_PARAM.value ? KOFFEE_KARMA_CHANNEL_ID_PARAM.value() : process.env.KOFFEE_KARMA_CHANNEL_ID);
+      value = config.koffee_karma ? config.koffee_karma.channel_id : undefined;
       break;
     default:
-      console.warn(`[config] Unknown config key requested: ${key}. Trying process.env.`);
-      value = process.env[key];
+      // For any other keys, you might still want a process.env fallback or warning
+      console.warn(`[config] Unknown or non-standard config key requested: ${key}. Trying process.env.`);
+      value = process.env[key]; // Fallback for other potential env vars
       break;
   }
 
@@ -48,6 +35,11 @@ export const getConfig = (key, fallback = null) => {
     return value;
   }
 
-  console.warn(`[config] Value for key ${key} not found in functions.config(), params, or process.env. Falling back to default.`);
+  // Only log warning and use fallback if specifically not found via the known paths
+  if (['SLACK_BOT_TOKEN', 'SLACK_SIGNING_SECRET', 'KOFFEE_KARMA_CHANNEL_ID'].includes(key)) {
+    console.warn(`[config] Crucial key ${key} not found in functions.config(). Check CI/CD setup and 'firebase functions:config:set' commands.`);
+  } else {
+    console.warn(`[config] Value for key ${key} not found.`)
+  }
   return fallback;
 }; 
