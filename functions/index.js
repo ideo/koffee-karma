@@ -36,120 +36,7 @@ import { formatOrderMessage } from './lib/messages/order-message.js'; // <<< COR
 import { formatRunnerMessage } from './utils/message-formatter.js'; // <<< ADD THIS IMPORT
 import { generateMap } from './utils/message-formatter.js'; // <<< Ensure map is also imported if needed elsewhere (it was used in action handlers)
 
-// <<< ADD FIREBASE ADMIN INITIALIZATION >>>
-if (admin.apps.length === 0) {
-  admin.initializeApp();
-  logger.info('Firebase Admin SDK initialized.');
-} else {
-  logger.debug('Firebase Admin SDK already initialized.');
-}
-
-// Force Firestore client initialization at load time
-// await getFirestore(); // <<< REMOVE this as well, firebase.js handles db init
-// console.log('[index.js] Firestore client initialization awaited.');
-
-const token = getConfig('SLACK_BOT_TOKEN');
-const signingSecret = getConfig('SLACK_SIGNING_SECRET');
-const channelId = getConfig('KOFFEE_KARMA_CHANNEL_ID');
-// ... (validation logic)
-const expressReceiver = new ExpressReceiver({
-  signingSecret: signingSecret,
-  logLevel: LogLevel.DEBUG
-});
-const app = new App({
-  token: token,
-  receiver: expressReceiver,
-  logLevel: LogLevel.DEBUG, 
-  processBeforeResponse: true
-});
-app.use(async ({ next }) => {
-  console.log('🚦 Bolt app.use middleware reached! Request proceeding...');
-  await next();
-});
-app.error(async (error) => {
-  // Log the entire error object structure
-  console.error("🔥🔥🔥 Global Bolt Error Handler Caught Error 🔥🔥🔥:");
-  console.error("Error Code:", error.code); // e.g., slack_bolt_error_code
-  console.error("Original Error:", error.original?.message || error.original || 'N/A'); // Underlying error if available
-  console.error("Full Error Stack:", error.stack);
-  // Log context if available (may not be present for all errors)
-  if (error.context) {
-      console.error("Error Context:", JSON.stringify(error.context, null, 2));
-  }
-  // Log the entire error object just in case
-  console.error("Complete Error Object:", JSON.stringify(error, null, 2));
-});
-
-const firebaseApp = express();
-
-// Add body-parser middleware first to handle different content types
-firebaseApp.use(bodyParser.json()); // For Slack challenge (application/json)
-firebaseApp.use(bodyParser.urlencoded({ extended: true })); // For interactive components (application/x-www-form-urlencoded)
-
-// <<< ADD Middleware for Slack URL Verification Challenge >>>
-firebaseApp.use((req, res, next) => {
-  if (req.body && req.body.type === 'url_verification' && req.body.challenge) {
-    console.log('✅ Responding to Slack URL verification challenge.');
-    res.status(200).send(req.body.challenge);
-  } else {
-    // Not a verification request, continue to next middleware
-    console.log('⏩ Verification challenge check passed, continuing...');
-    next();
-  }
-});
-
-// Middleware to unpack stringified payload (if necessary, runs AFTER verification check)
-firebaseApp.use((req, res, next) => {
-  // Check if the content type is urlencoded and if payload exists as a string
-  if (req.headers['content-type'] === 'application/x-www-form-urlencoded' && 
-      req.body && 
-      typeof req.body.payload === 'string') {
-    try {
-      console.log('⏩ Unpacking req.body.payload string...');
-      req.body = JSON.parse(req.body.payload);
-      console.log('✅ Successfully parsed payload string into req.body.');
-    } catch (e) {
-      console.error('❌ Failed to parse req.body.payload string:', e);
-      // Don't halt execution, maybe Bolt can still handle it
-    }
-  } else {
-      console.log('⏩ Payload unpacking middleware skipped (not urlencoded or payload not a string).');
-  }
-  next(); // Pass control to the next middleware (Bolt receiver)
-});
-
-// <<< ADD Handler for Warming Pings >>>
-firebaseApp.get('/', async (req, res) => {
-  console.log('Received GET / request, likely from warmer. Initiating 30-second delay...');
-  
-  // Introduce a 30-second delay
-  await new Promise(resolve => setTimeout(resolve, 30000)); // 30,000 milliseconds = 30 seconds
-  
-  console.log('30-second delay complete. Sending 204 No Content for warmer.');
-  res.status(204).send(); 
-});
-
-// Mount Bolt receiver AFTER the GET handler and unpacking middleware
-firebaseApp.use('/', expressReceiver.requestHandler.bind(expressReceiver));
-
-// --- RESTORE MAIN EXPORT using v2 onRequest with options ---
-export const slack = onRequest(
-    { 
-        region: "us-west1", 
-        memory: "256MiB",    // <<< Updated memory to 512MiB >>>
-        minInstances: 1
-    },
-    firebaseApp // Pass the express app as the handler
-); 
-
-// --- COMMENT OUT MINIMAL HANDLER EXPORT ---
-// export const slack = onRequest(
-//     { region: "us-west1" }, 
-//     (req, res) => { ... }
-// );
-
-// --- RESTORE HANDLER IMPORT/REGISTRATION --- 
-console.log('*** Importing handlers... ***');
+// --- Handler Imports (Import them here, but register them inside initializeSlackApp) ---
 import { karmaHandler } from './handlers/karma-handler.js';
 import { orderHandler } from './handlers/order-handler.js';
 import { deliveryHandler, handleOpenOrderModalForRunner } from './handlers/delivery-handler.js';
@@ -157,94 +44,192 @@ import { leaderboardHandler } from './handlers/leaderboard-handler.js';
 import { eventHandler } from './handlers/event-handler.js';
 import { redeemHandler } from './handlers/redeem-handler.js';
 
-karmaHandler(app); // Handles /karma
-orderHandler(app); // Should handle /order, claim, cancel, deliver, order_modal view, location_select action
-deliveryHandler(app); // Should handle /deliver, order_now, cancel_ready_offer, delivery_modal view
-leaderboardHandler(app);
-redeemHandler(app);
-eventHandler(app);
+if (admin.apps.length === 0) {
+  admin.initializeApp();
+  logger.info('Firebase Admin SDK initialized.');
+} else {
+  logger.debug('Firebase Admin SDK already initialized.');
+}
 
-// TODO: Implement handlers for /leaderboard, /redeem, and member_joined_channel event
-// Placeholder text for when these are added:
+// --- Lazy Initialization for Slack App ---
+let _slackApp;
+let _expressReceiver;
 
-// /leaderboard - Fetch players sorted by reputation, format and post
-// Expected output format: 
-/*
-Top 5 Freaks:
-1. [NAME] - [REPUTATION] Rep 🔊 ([TITLE])
-2. [NAME] - [REPUTATION] Rep 🔊 ([TITLE])
-...
-*/
+function initializeSlackApp() {
+  if (!_slackApp) {
+    logger.info('[initializeSlackApp] Initializing Slack App for the first time...');
+    const token = getConfig('SLACK_BOT_TOKEN');
+    const signingSecret = getConfig('SLACK_SIGNING_SECRET');
+    // const channelId = getConfig('KOFFEE_KARMA_CHANNEL_ID'); // Loaded but not directly used for App init
 
-// /redeem <code> - Validate code, update DB, send ephemeral confirmation
-// Success: `✅ Code [CODE] redeemed. +[X] Karma ⚡ added.`
-// Error (Invalid): `⛔ Code [CODE] is garbage.`
-// Error (Expired/Used): `⛔ Code [CODE] already burned.`
+    if (!token || !signingSecret) {
+      logger.error('🔥🔥🔥 CRITICAL: SLACK_BOT_TOKEN or SLACK_SIGNING_SECRET is missing. App cannot function correctly.');
+      // In a real scenario, you might want to throw an error or prevent the app from trying to start further
+      // if these are critical for any operation. For deployment analysis, this log is important.
+    }
 
-// event member_joined_channel - Post welcome, DM tutorial
-// Public channel message: `🕵 [USER FULL NAME] dropped into the pit` // Use full name
-// DM Text: `Welcome to Koffee Karma. Burn Karma ⚡ Deliver drinks ☕ Build Rep 🔊 Top names live on /leaderboard. No gods. No heroes. Just caffeine.`
+    _expressReceiver = new ExpressReceiver({
+      signingSecret: signingSecret,
+      logLevel: LogLevel.DEBUG // Or use getConfig for this too if needed
+    });
 
-console.log('*** Handlers imported and registered ***');
+    _slackApp = new App({
+      token: token,
+      receiver: _expressReceiver,
+      logLevel: LogLevel.DEBUG,
+      processBeforeResponse: true // Important for Cloud Functions HTTPS environment
+    });
 
-// --- REMOVE VIEW/ACTION REGISTRATIONS THAT SHOULD BE IN OTHER HANDLERS ---
-// View Submissions / Interactions - These should be handled within orderHandler and deliveryHandler
-// app.view('order_modal', viewHandler.handleOrderModalSubmission); 
-// app.view('delivery_modal', viewHandler.handleDeliveryModalSubmission); 
-// app.action('location_select', viewHandler.handleLocationSelect); 
+    _slackApp.use(async ({ next }) => {
+      logger.debug('🚦 Bolt app.use middleware reached! Request proceeding...');
+      await next();
+    });
 
-// === Button Actions ===
-// ... other button actions registered within specific handlers ...
-app.action('open_order_modal_for_runner', handleOpenOrderModalForRunner); // Keep this if it's separate
+    _slackApp.error(async (error) => {
+      logger.error("🔥🔥🔥 Global Bolt Error Handler Caught Error 🔥🔥🔥:");
+      logger.error("Error Code:", error.code);
+      logger.error("Original Error:", error.original?.message || error.original || 'N/A');
+      logger.error("Full Error Stack:", error.stack);
+      if (error.context) {
+        logger.error("Error Context:", JSON.stringify(error.context, null, 2));
+      }
+      logger.error("Complete Error Object:", JSON.stringify(error, null, 2));
+    });
 
-// Slash Commands
-app.command('/order', orderHandler.handleOrderSubmission);
-app.command('/karma', karmaHandler.handleKarmaCommand);
-app.command('/deliver', deliveryHandler.handleDeliverCommand);
-app.command('/leaderboard', leaderboardHandler.handleLeaderboardCommand);
-app.command('/redeem', redeemHandler.handleRedeemCommand);
+    // --- Register Handlers with the _slackApp instance ---
+    logger.info('*** Registering handlers with Slack App... ***');
+    
+    // Call imported handlers to register their specific commands/actions/events
+    karmaHandler(_slackApp);
+    orderHandler(_slackApp);
+    deliveryHandler(_slackApp);
+    leaderboardHandler(_slackApp);
+    redeemHandler(_slackApp);
+    eventHandler(_slackApp);
 
-// Button Actions
-app.action('claim_order', orderHandler.handleClaimOrder);
-app.action('deliver_order', orderHandler.handleDeliverOrder);
-app.action('cancel_order', orderHandler.handleCancelOrder); 
-app.action('cancel_claimed_order', orderHandler.handleCancelClaimedOrder);
-app.action('order_now', deliveryHandler.handleOrderNowButton);
-app.action('cancel_ready_offer', deliveryHandler.handleCancelReadyOffer);
+    // Specific actions/commands/events that might have been directly registered in index.js before
+    // Ensure these are now handled within their respective handler modules OR registered here if truly global.
+    // Most of these were already being delegated to specific handlers, which is good.
+    // Example of a direct registration if one was missed by modular handlers:
+    // _slackApp.action('some_global_action', async ({ ack }) => { await ack(); /* ... */ });
 
-// Events
-app.event('member_joined_channel', eventHandler.handleMemberJoinedChannel); // Planned
+    // This specific action is kept as it's imported directly and seems intentionally separate.
+    _slackApp.action('open_order_modal_for_runner', handleOpenOrderModalForRunner);
+    
+    // The following direct registrations are REMOVED as they are presumed to be handled
+    // by the handler module calls above (e.g., orderHandler(_slackApp) should register /order).
+    // If any handler module does NOT register its own commands/actions/events,
+    // that module needs to be updated, or the specific registration re-added here if necessary.
 
-console.log('*** index.js restored version finished executing global scope ***');
+    // REMOVED: _slackApp.command('/order', orderHandler.handleOrderSubmission);
+    // REMOVED: _slackApp.command('/karma', karmaHandler.handleKarmaCommand);
+    // REMOVED: _slackApp.command('/deliver', deliveryHandler.handleDeliverCommand);
+    // REMOVED: _slackApp.command('/leaderboard', leaderboardHandler.handleLeaderboardCommand);
+    // REMOVED: _slackApp.command('/redeem', redeemHandler.handleRedeemCommand);
 
-// ==========================================================================
-// === Pub/Sub Triggered Function for Timer Updates/Expiration ===
-// ==========================================================================
+    // REMOVED: _slackApp.action('claim_order', orderHandler.handleClaimOrder);
+    // REMOVED: _slackApp.action('deliver_order', orderHandler.handleDeliverOrder);
+    // REMOVED: _slackApp.action('cancel_order', orderHandler.handleCancelOrder);
+    // REMOVED: _slackApp.action('cancel_claimed_order', orderHandler.handleCancelClaimedOrder);
+    // REMOVED: _slackApp.action('order_now', deliveryHandler.handleOrderNowButton);
+    // REMOVED: _slackApp.action('cancel_ready_offer', deliveryHandler.handleCancelReadyOffer);
 
-const ORDER_TIMER_TOPIC = 'check-order-timers'; // Define topic name
+    // REMOVED: _slackApp.event('member_joined_channel', eventHandler.handleMemberJoinedChannel);
 
-// Add region to orderTimerUpdater export
+    logger.info('*** Slack App and handlers registered. ***');
+  }
+  // Return both app and receiver as they might be needed by different parts
+  return { app: _slackApp, receiver: _expressReceiver };
+}
+// --- End Lazy Initialization ---
+
+const firebaseApp = express();
+
+firebaseApp.use(bodyParser.json());
+firebaseApp.use(bodyParser.urlencoded({ extended: true }));
+
+firebaseApp.use((req, res, next) => {
+  if (req.body && req.body.type === 'url_verification' && req.body.challenge) {
+    logger.info('✅ Responding to Slack URL verification challenge.');
+    res.status(200).send(req.body.challenge);
+  } else {
+    logger.debug('⏩ Verification challenge check passed, continuing...');
+    next();
+  }
+});
+
+firebaseApp.use((req, res, next) => {
+  if (req.headers['content-type'] === 'application/x-www-form-urlencoded' &&
+      req.body &&
+      typeof req.body.payload === 'string') {
+    try {
+      logger.debug('⏩ Unpacking req.body.payload string...');
+      req.body = JSON.parse(req.body.payload);
+      logger.debug('✅ Successfully parsed payload string into req.body.');
+    } catch (e) {
+      logger.error('❌ Failed to parse req.body.payload string:', e);
+    }
+  } else {
+    logger.debug('⏩ Payload unpacking middleware skipped.');
+  }
+  next();
+});
+
+firebaseApp.get('/', async (req, res) => {
+  logger.info('Received GET / request, likely from warmer. Initiating 30-second delay...');
+  await new Promise(resolve => setTimeout(resolve, 30000));
+  logger.info('30-second delay complete. Sending 204 No Content for warmer.');
+  res.status(204).send();
+});
+
+// Mount Bolt receiver using the lazily initialized receiver
+firebaseApp.use('/', (req, res, next) => {
+  const { receiver } = initializeSlackApp(); // Ensures app and receiver are initialized
+  if (receiver && typeof receiver.requestHandler === 'function') {
+    return receiver.requestHandler(req, res);
+  }
+  logger.error('Slack receiver is not available or not a function.');
+  res.status(500).send('Internal Server Error: Slack receiver misconfiguration.');
+});
+
+export const slack = onRequest(
+    {
+        region: "us-west1",
+        memory: "256MiB",
+        minInstances: 1
+    },
+    (request, response) => {
+      initializeSlackApp(); // Crucial: Ensure Slack app is initialized before firebaseApp handles request
+      return firebaseApp(request, response); // Pass control to the express app
+    }
+);
+
+// --- Pub/Sub Function (orderTimerUpdater) ---
+// This function creates its own temporary App instance when triggered,
+// which is fine as it's self-contained and only for specific client calls.
+// No changes needed here for lazy loading the main 'slack' function's App.
+const ORDER_TIMER_TOPIC = 'check-order-timers';
+
 export const orderTimerUpdater = onMessagePublished(
-    { topic: ORDER_TIMER_TOPIC, region: 'us-west1' }, 
+    { topic: ORDER_TIMER_TOPIC, region: 'us-west1' },
     async (event) => {
-        console.log(`[${ORDER_TIMER_TOPIC}] Received Pub/Sub message:`, event.id);
-        
-        const tempApp = new App({
+        logger.info(`[${ORDER_TIMER_TOPIC}] Received Pub/Sub message:`, event.id);
+
+        const tempApp = new App({ // This is fine, it's a temporary client for this job
             token: getConfig('SLACK_BOT_TOKEN'),
             signingSecret: getConfig('SLACK_SIGNING_SECRET'),
-            logLevel: LogLevel.DEBUG 
+            logLevel: LogLevel.DEBUG
         });
         const client = tempApp.client;
-        const logger = tempApp.logger; 
+        // const jobLogger = tempApp.logger; // Use the main logger or this one
 
         const now = new Date();
         const nowTimestamp = admin.firestore.Timestamp.fromDate(now);
-        const ordersRef = admin.firestore().collection('orders'); // Base collection ref
+        const ordersRef = admin.firestore().collection('orders');
 
         logger.info(`[${ORDER_TIMER_TOPIC}] Running timer check at ${now.toISOString()}`);
 
         try {
-            // --- Process Active Orders (Unclaimed and Claimed) with correct timestamps ---
             const activeUnclaimedOrdersQuery = ordersRef
                 .where('status', '==', ORDER_STATUS.ORDERED)
                 .where('expiryTimestamp', '>', nowTimestamp);
@@ -624,3 +609,5 @@ async function processExpiredClaimedOrders(snapshot, client, logger) {
     });
     return promises;
 }
+
+console.log('*** index.js global scope finished processing (lazy init for Slack App configured) ***');
