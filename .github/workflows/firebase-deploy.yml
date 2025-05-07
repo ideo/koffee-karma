@@ -3,8 +3,12 @@ name: Deploy to Firebase
 on:
   push:
     branches:
-      - main
-      - dev
+      - main # Triggers on direct pushes/merges to main
+      - dev  # Triggers on direct pushes/merges to dev
+  pull_request: # Add this section
+    branches:
+      - dev  # Triggers when a PR is opened/updated targeting the dev branch
+    types: [opened, synchronize, reopened] # Specify PR event types
 
 jobs:
   deploy_firebase:
