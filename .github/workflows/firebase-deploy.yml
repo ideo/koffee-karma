@@ -1,0 +1,56 @@
+name: Deploy to Firebase
+
+on:
+  push:
+    branches:
+      - main # Triggers on direct pushes/merges to main
+      - dev  # Triggers on direct pushes/merges to dev
+  pull_request: # Add this section
+    branches:
+      - dev  # Triggers when a PR is opened/updated targeting the dev branch
+    types: [opened, synchronize, reopened] # Specify PR event types
+
+jobs:
+  deploy_firebase:
+    runs-on: ubuntu-latest
+    env:
+      FIREBASE_PROJECT_ID_PROD: koffee-karma
+      FIREBASE_PROJECT_ID_DEV: koffee-karma-dev
+      # Path where the service account key will be written
+      GOOGLE_APPLICATION_CREDENTIALS: ${{ github.workspace }}/serviceAccountKey.json
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Install function dependencies
+        run: npm ci
+        working-directory: ./functions
+
+      # Deploy to DEV environment
+      - name: Deploy to Firebase (Dev)
+        if: github.ref == 'refs/heads/dev'
+        run: |
+          echo "Using DEV service account for project ${{ env.FIREBASE_PROJECT_ID_DEV }}"
+          echo "${{ secrets.FIREBASE_SA_DEV }}" > ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
+          firebase deploy --only functions --project ${{ env.FIREBASE_PROJECT_ID_DEV }} --non-interactive --force
+
+      # Deploy to PROD environment
+      - name: Deploy to Firebase (Prod)
+        if: github.ref == 'refs/heads/main'
+        run: |
+          echo "Using PROD service account for project ${{ env.FIREBASE_PROJECT_ID_PROD }}"
+          echo "${{ secrets.FIREBASE_SA_PROD }}" > ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
+          firebase deploy --only functions --project ${{ env.FIREBASE_PROJECT_ID_PROD }} --non-interactive --force
+      
+      - name: Cleanup Service Account Key
+        if: always() # Ensures this step runs even if previous steps fail
+        run: rm -f ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
