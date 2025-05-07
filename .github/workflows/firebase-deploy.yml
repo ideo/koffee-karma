@@ -35,20 +35,22 @@ jobs:
         run: npm ci
         working-directory: ./functions
 
-      # Deploy to DEV environment
+      # Deploy to DEV environment (handles both PR to dev and push to dev)
       - name: Deploy to Firebase (Dev)
-        if: github.ref == 'refs/heads/dev'
+        if: (github.event_name == 'pull_request' && github.base_ref == 'dev') || (github.event_name == 'push' && github.ref == 'refs/heads/dev')
         run: |
           echo "Using DEV service account for project ${{ env.FIREBASE_PROJECT_ID_DEV }}"
           echo "${{ secrets.FIREBASE_SA_DEV }}" > ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
+          firebase logout
           firebase deploy --only functions --project ${{ env.FIREBASE_PROJECT_ID_DEV }} --non-interactive --force
 
-      # Deploy to PROD environment
+      # Deploy to PROD environment (handles push to main)
       - name: Deploy to Firebase (Prod)
-        if: github.ref == 'refs/heads/main'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
           echo "Using PROD service account for project ${{ env.FIREBASE_PROJECT_ID_PROD }}"
           echo "${{ secrets.FIREBASE_SA_PROD }}" > ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
+          firebase logout
           firebase deploy --only functions --project ${{ env.FIREBASE_PROJECT_ID_PROD }} --non-interactive --force
       
       - name: Cleanup Service Account Key
