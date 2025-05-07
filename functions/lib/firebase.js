@@ -6,8 +6,9 @@ import { REPUTATION_TITLES } from '../utils/constants.js';
 // Ensure Firebase Admin is initialized only once
 if (!admin.apps.length) {
   try {
-    admin.initializeApp();
-    console.log('Firebase Admin SDK initialized successfully in firebase.js.');
+    // Explicitly pass undefined to force default credential discovery for the environment
+    admin.initializeApp(undefined);
+    console.log('Firebase Admin SDK initialized successfully (forcing default creds) in firebase.js.');
   } catch (initError) {
     console.error('Error initializing Firebase Admin SDK in firebase.js:', initError);
   }
