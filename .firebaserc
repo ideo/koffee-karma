@@ -1,6 +1,8 @@
 {
   "projects": {
-    "default": "koffee-karma"
+    "default": "koffee-karma-dev",
+    "prod": "koffee-karma",
+    "dev": "koffee-karma-dev"
   },
   "targets": {},
   "etags": {}
