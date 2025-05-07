@@ -2,17 +2,14 @@
  * Configuration Utility
  * Provides a consistent way to access environment variables
  */
-// import functions from 'firebase-functions'; // v1 needed for config fallback - REMOVED
+import functions from 'firebase-functions'; // Ensure this is imported
 import { defineString } from 'firebase-functions/params';
 
-// Define parameters using v2 SDK - these will be evaluated at deployment time
-// Values can be set in .env files for local emulation
-// See https://firebase.google.com/docs/functions/config-env
-const SLACK_BOT_TOKEN = defineString('SLACK_BOT_TOKEN');
-const SLACK_SIGNING_SECRET = defineString('SLACK_SIGNING_SECRET');
-const KOFFEE_KARMA_CHANNEL_ID = defineString('KOFFEE_KARMA_CHANNEL_ID');
-// Define other parameters as needed, e.g.:
-// const GOOGLE_APPLICATION_CREDENTIALS = defineString('GOOGLE_APPLICATION_CREDENTIALS');
+// Define parameters for potential use with CLI or local .env files
+// but primary access will be through functions.config() for deployed env.
+const SLACK_BOT_TOKEN_PARAM = defineString('SLACK_BOT_TOKEN');
+const SLACK_SIGNING_SECRET_PARAM = defineString('SLACK_SIGNING_SECRET');
+const KOFFEE_KARMA_CHANNEL_ID_PARAM = defineString('KOFFEE_KARMA_CHANNEL_ID');
 
 /**
  * Get configuration value using Firebase Params (V2 SDK).
@@ -24,34 +21,33 @@ const KOFFEE_KARMA_CHANNEL_ID = defineString('KOFFEE_KARMA_CHANNEL_ID');
  * @returns {string} The configuration value or the fallback
  */
 export const getConfig = (key, fallback = null) => {
-  let param;
+  const config = functions.config();
+  let value;
+
   switch (key) {
     case 'SLACK_BOT_TOKEN':
-      param = SLACK_BOT_TOKEN;
+      // Prefer functions.config(), then param, then process.env for wider compatibility
+      value = config.slack && config.slack.bot_token !== undefined ? config.slack.bot_token :
+              (SLACK_BOT_TOKEN_PARAM.value ? SLACK_BOT_TOKEN_PARAM.value() : process.env.SLACK_BOT_TOKEN);
       break;
     case 'SLACK_SIGNING_SECRET':
-      param = SLACK_SIGNING_SECRET;
+      value = config.slack && config.slack.signing_secret !== undefined ? config.slack.signing_secret :
+              (SLACK_SIGNING_SECRET_PARAM.value ? SLACK_SIGNING_SECRET_PARAM.value() : process.env.SLACK_SIGNING_SECRET);
       break;
     case 'KOFFEE_KARMA_CHANNEL_ID':
-      param = KOFFEE_KARMA_CHANNEL_ID;
+      value = config.koffee_karma && config.koffee_karma.channel_id !== undefined ? config.koffee_karma.channel_id :
+              (KOFFEE_KARMA_CHANNEL_ID_PARAM.value ? KOFFEE_KARMA_CHANNEL_ID_PARAM.value() : process.env.KOFFEE_KARMA_CHANNEL_ID);
       break;
-    // Add cases for other defined parameters
-    // case 'GOOGLE_APPLICATION_CREDENTIALS':
-    //   param = GOOGLE_APPLICATION_CREDENTIALS;
-    //   break;
     default:
-      console.warn(`[config] Unknown config key requested: ${key}`);
-      // Attempt to read directly from process.env as a last resort for unparameterized values
-      return process.env[key] || fallback;
+      console.warn(`[config] Unknown config key requested: ${key}. Trying process.env.`);
+      value = process.env[key];
+      break;
   }
 
-  try {
-    // .value() accesses the resolved parameter value
-    return param.value();
-  } catch (e) {
-    // This might happen if the parameter isn't set and has no default
-    console.warn(`[config] Failed to get value for parameter ${key}: ${e.message}`);
-    // Fallback to process.env again or the provided fallback
-    return process.env[key] || fallback;
+  if (value !== undefined) {
+    return value;
   }
+
+  console.warn(`[config] Value for key ${key} not found in functions.config(), params, or process.env. Falling back to default.`);
+  return fallback;
 }; 
