@@ -38,19 +38,51 @@ jobs:
       # Deploy to DEV environment (handles both PR to dev and push to dev)
       - name: Deploy to Firebase (Dev)
         if: (github.event_name == 'pull_request' && github.base_ref == 'dev') || (github.event_name == 'push' && github.ref == 'refs/heads/dev')
+        env: # Explicitly set for this step
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ github.workspace }}/serviceAccountKey.json
         run: |
-          echo "Using DEV service account for project ${{ env.FIREBASE_PROJECT_ID_DEV }}"
+          echo "Attempting to write DEV service account key to ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}"
           echo "${{ secrets.FIREBASE_SA_DEV }}" > ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
+          
+          echo "Verifying DEV service account key file..."
+          ls -l ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
+          if [ ! -s ${{ env.GOOGLE_APPLICATION_CREDENTIALS }} ]; then
+            echo "Error: DEV Service account key file is empty or does not exist."
+            exit 1
+          else
+            echo "DEV Service account key file exists and is not empty. First line:"
+            head -n 1 ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
+          fi
+          
+          echo "Attempting logout (should indicate not logged in)..."
           firebase logout
+          
+          echo "Attempting to deploy to DEV project: ${{ env.FIREBASE_PROJECT_ID_DEV }}"
           firebase deploy --only functions --project ${{ env.FIREBASE_PROJECT_ID_DEV }} --non-interactive --force
 
       # Deploy to PROD environment (handles push to main)
       - name: Deploy to Firebase (Prod)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env: # Explicitly set for this step
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ github.workspace }}/serviceAccountKey.json
         run: |
-          echo "Using PROD service account for project ${{ env.FIREBASE_PROJECT_ID_PROD }}"
+          echo "Attempting to write PROD service account key to ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}"
           echo "${{ secrets.FIREBASE_SA_PROD }}" > ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
+
+          echo "Verifying PROD service account key file..."
+          ls -l ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
+          if [ ! -s ${{ env.GOOGLE_APPLICATION_CREDENTIALS }} ]; then
+            echo "Error: PROD Service account key file is empty or does not exist."
+            exit 1
+          else
+            echo "PROD Service account key file exists and is not empty. First line:"
+            head -n 1 ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
+          fi
+          
+          echo "Attempting logout (should indicate not logged in)..."
           firebase logout
+          
+          echo "Attempting to deploy to PROD project: ${{ env.FIREBASE_PROJECT_ID_PROD }}"
           firebase deploy --only functions --project ${{ env.FIREBASE_PROJECT_ID_PROD }} --non-interactive --force
       
       - name: Cleanup Service Account Key
