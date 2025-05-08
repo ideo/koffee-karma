@@ -57,6 +57,9 @@ jobs:
           echo "SLACK_SIGNING_SECRET=${{ secrets.SLACK_SIGNING_SECRET_DEV }}" >> functions/.env.dev
           echo "KOFFEE_KARMA_CHANNEL_ID=${{ secrets.KOFFEE_KARMA_CHANNEL_ID_DEV }}" >> functions/.env.dev
           
+          echo "Contents of functions/.env.dev:"
+          cat functions/.env.dev
+          
           echo "Attempting to deploy to DEV project: ${{ env.FIREBASE_PROJECT_ID_DEV }}"
           # Explicitly set all defined parameters using --set-params
           firebase deploy --only functions \
@@ -71,6 +74,9 @@ jobs:
           echo "SLACK_BOT_TOKEN=${{ secrets.SLACK_BOT_TOKEN_PROD }}" > functions/.env.prod
           echo "SLACK_SIGNING_SECRET=${{ secrets.SLACK_SIGNING_SECRET_PROD }}" >> functions/.env.prod
           echo "KOFFEE_KARMA_CHANNEL_ID=${{ secrets.KOFFEE_KARMA_CHANNEL_ID_PROD }}" >> functions/.env.prod
+          
+          echo "Contents of functions/.env.prod:"
+          cat functions/.env.prod
           
           echo "Attempting to deploy to PROD project: ${{ env.FIREBASE_PROJECT_ID_PROD }}"
           # Explicitly set all defined parameters using --set-params
