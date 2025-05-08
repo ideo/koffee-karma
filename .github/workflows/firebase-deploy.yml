@@ -52,37 +52,16 @@ jobs:
       - name: Deploy to Firebase (Dev)
         if: (github.event_name == 'pull_request' && github.base_ref == 'dev') || (github.event_name == 'push' && github.ref == 'refs/heads/dev')
         run: |
-          echo "Creating .env.dev file for Firebase functions"
-          echo "SLACK_BOT_TOKEN=${{ secrets.SLACK_BOT_TOKEN_DEV }}" > functions/.env.dev
-          echo "SLACK_SIGNING_SECRET=${{ secrets.SLACK_SIGNING_SECRET_DEV }}" >> functions/.env.dev
-          echo "KOFFEE_KARMA_CHANNEL_ID=${{ secrets.KOFFEE_KARMA_CHANNEL_ID_DEV }}" >> functions/.env.dev
-          
-          echo "Contents of functions/.env.dev:"
-          cat functions/.env.dev
-          
-          echo "Attempting to deploy to DEV project: ${{ env.FIREBASE_PROJECT_ID_DEV }}"
-          # Explicitly set all defined parameters using --set-params
-          firebase deploy --only functions \
-            --project ${{ env.FIREBASE_PROJECT_ID_DEV }} \
-            --non-interactive --force
+          echo "Attempting to deploy to DEV project: ${{ env.FIREBASE_PROJECT_ID_DEV }} setting env vars..."
+          firebase deploy --only functions --project ${{ env.FIREBASE_PROJECT_ID_DEV }} --non-interactive --force \
+            --set-env-vars SLACK_BOT_TOKEN="${{ secrets.SLACK_BOT_TOKEN_DEV }}",SLACK_SIGNING_SECRET="${{ secrets.SLACK_SIGNING_SECRET_DEV }}",KOFFEE_KARMA_CHANNEL_ID="${{ secrets.KOFFEE_KARMA_CHANNEL_ID_DEV }}"
 
       # Deploy to PROD environment (handles push to main)
       - name: Deploy to Firebase (Prod)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
-          echo "Creating .env.prod file for Firebase functions"
-          echo "SLACK_BOT_TOKEN=${{ secrets.SLACK_BOT_TOKEN_PROD }}" > functions/.env.prod
-          echo "SLACK_SIGNING_SECRET=${{ secrets.SLACK_SIGNING_SECRET_PROD }}" >> functions/.env.prod
-          echo "KOFFEE_KARMA_CHANNEL_ID=${{ secrets.KOFFEE_KARMA_CHANNEL_ID_PROD }}" >> functions/.env.prod
-          
-          echo "Contents of functions/.env.prod:"
-          cat functions/.env.prod
-          
-          echo "Attempting to deploy to PROD project: ${{ env.FIREBASE_PROJECT_ID_PROD }}"
-          # Explicitly set all defined parameters using --set-params
-          firebase deploy --only functions \
-            --project ${{ env.FIREBASE_PROJECT_ID_PROD }} \
-            --non-interactive --force
+          echo "Attempting to deploy to PROD project: ${{ env.FIREBASE_PROJECT_ID_PROD }} setting env vars..."
+          firebase deploy --only functions --project ${{ env.FIREBASE_PROJECT_ID_PROD }} --non-interactive --force \
+            --set-env-vars SLACK_BOT_TOKEN="${{ secrets.SLACK_BOT_TOKEN_PROD }}",SLACK_SIGNING_SECRET="${{ secrets.SLACK_SIGNING_SECRET_PROD }}",KOFFEE_KARMA_CHANNEL_ID="${{ secrets.KOFFEE_KARMA_CHANNEL_ID_PROD }}"
       
       # No longer need to manually cleanup serviceAccountKey.json as it's not written to disk by this auth method
-      # Force re-run with confirmed correct code
