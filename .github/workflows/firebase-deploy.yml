@@ -42,7 +42,7 @@ jobs:
           credentials_json: '${{ secrets.FIREBASE_SA_PROD }}'
 
       - name: Install Firebase CLI
-        run: npm install -g firebase-tools
+        run: npm install -g firebase-tools@latest
 
       - name: Install function dependencies
         run: npm ci
