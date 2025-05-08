@@ -41,6 +41,9 @@ jobs:
         with:
           credentials_json: '${{ secrets.FIREBASE_SA_PROD }}'
 
+      - name: Install Specific Firebase CLI Version
+        run: npm install -g firebase-tools@14.3.0 # Pin to specific recent version
+
       - name: Install function dependencies
         run: npm ci
         working-directory: ./functions
@@ -50,7 +53,7 @@ jobs:
         if: (github.event_name == 'pull_request' && github.base_ref == 'dev') || (github.event_name == 'push' && github.ref == 'refs/heads/dev')
         run: |
           echo "Attempting to deploy to DEV project: ${{ env.FIREBASE_PROJECT_ID_DEV }} setting env vars via npx..."
-          npx -p firebase-tools@latest firebase deploy --only functions --project ${{ env.FIREBASE_PROJECT_ID_DEV }} --non-interactive --force \
+          firebase deploy --only functions --project ${{ env.FIREBASE_PROJECT_ID_DEV }} --non-interactive --force \
             --set-env-vars SLACK_BOT_TOKEN="${{ secrets.SLACK_BOT_TOKEN_DEV }}" \
             --set-env-vars SLACK_SIGNING_SECRET="${{ secrets.SLACK_SIGNING_SECRET_DEV }}" \
             --set-env-vars KOFFEE_KARMA_CHANNEL_ID="${{ secrets.KOFFEE_KARMA_CHANNEL_ID_DEV }}"
@@ -60,7 +63,7 @@ jobs:
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
           echo "Attempting to deploy to PROD project: ${{ env.FIREBASE_PROJECT_ID_PROD }} setting env vars via npx..."
-          npx -p firebase-tools@latest firebase deploy --only functions --project ${{ env.FIREBASE_PROJECT_ID_PROD }} --non-interactive --force \
+          firebase deploy --only functions --project ${{ env.FIREBASE_PROJECT_ID_PROD }} --non-interactive --force \
             --set-env-vars SLACK_BOT_TOKEN="${{ secrets.SLACK_BOT_TOKEN_PROD }}" \
             --set-env-vars SLACK_SIGNING_SECRET="${{ secrets.SLACK_SIGNING_SECRET_PROD }}" \
             --set-env-vars KOFFEE_KARMA_CHANNEL_ID="${{ secrets.KOFFEE_KARMA_CHANNEL_ID_PROD }}"
