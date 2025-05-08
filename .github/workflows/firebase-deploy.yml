@@ -50,13 +50,19 @@ jobs:
         if: (github.event_name == 'pull_request' && github.base_ref == 'dev') || (github.event_name == 'push' && github.ref == 'refs/heads/dev')
         run: |
           echo "Attempting to deploy to DEV project: ${{ env.FIREBASE_PROJECT_ID_DEV }} setting env vars via npx..."
-          npx -p firebase-tools@latest firebase deploy --only functions --project ${{ env.FIREBASE_PROJECT_ID_DEV }} --non-interactive --force --set-env-vars=SLACK_BOT_TOKEN="${{ secrets.SLACK_BOT_TOKEN_DEV }}",SLACK_SIGNING_SECRET="${{ secrets.SLACK_SIGNING_SECRET_DEV }}",KOFFEE_KARMA_CHANNEL_ID="${{ secrets.KOFFEE_KARMA_CHANNEL_ID_DEV }}"
+          npx -p firebase-tools@latest firebase deploy --only functions --project ${{ env.FIREBASE_PROJECT_ID_DEV }} --non-interactive --force \
+            --set-env-vars SLACK_BOT_TOKEN="${{ secrets.SLACK_BOT_TOKEN_DEV }}" \
+            --set-env-vars SLACK_SIGNING_SECRET="${{ secrets.SLACK_SIGNING_SECRET_DEV }}" \
+            --set-env-vars KOFFEE_KARMA_CHANNEL_ID="${{ secrets.KOFFEE_KARMA_CHANNEL_ID_DEV }}"
 
       # Deploy to PROD environment (handles push to main)
       - name: Deploy to Firebase (Prod)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
           echo "Attempting to deploy to PROD project: ${{ env.FIREBASE_PROJECT_ID_PROD }} setting env vars via npx..."
-          npx -p firebase-tools@latest firebase deploy --only functions --project ${{ env.FIREBASE_PROJECT_ID_PROD }} --non-interactive --force --set-env-vars=SLACK_BOT_TOKEN="${{ secrets.SLACK_BOT_TOKEN_PROD }}",SLACK_SIGNING_SECRET="${{ secrets.SLACK_SIGNING_SECRET_PROD }}",KOFFEE_KARMA_CHANNEL_ID="${{ secrets.KOFFEE_KARMA_CHANNEL_ID_PROD }}"
+          npx -p firebase-tools@latest firebase deploy --only functions --project ${{ env.FIREBASE_PROJECT_ID_PROD }} --non-interactive --force \
+            --set-env-vars SLACK_BOT_TOKEN="${{ secrets.SLACK_BOT_TOKEN_PROD }}" \
+            --set-env-vars SLACK_SIGNING_SECRET="${{ secrets.SLACK_SIGNING_SECRET_PROD }}" \
+            --set-env-vars KOFFEE_KARMA_CHANNEL_ID="${{ secrets.KOFFEE_KARMA_CHANNEL_ID_PROD }}"
       
       # No longer need to manually cleanup serviceAccountKey.json as it's not written to disk by this auth method
