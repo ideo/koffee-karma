@@ -52,32 +52,30 @@ jobs:
       - name: Deploy to Firebase (Dev)
         if: (github.event_name == 'pull_request' && github.base_ref == 'dev') || (github.event_name == 'push' && github.ref == 'refs/heads/dev')
         env: # Pass secrets as step env vars for easier access
-          # SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN_DEV }} # Secrets handled by Secret Manager
-          # SLACK_SIGNING_SECRET: ${{ secrets.SLACK_SIGNING_SECRET_DEV }} # Secrets handled by Secret Manager
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN_DEV }}
+          SLACK_SIGNING_SECRET: ${{ secrets.SLACK_SIGNING_SECRET_DEV }}
           KOFFEE_KARMA_CHANNEL_ID: ${{ secrets.KOFFEE_KARMA_CHANNEL_ID_DEV }}
         run: |
-          echo "Attempting to deploy to DEV project: ${{ env.FIREBASE_PROJECT_ID_DEV }} using --set-params for strings..."
-          # Use --set-params for defineString parameters.
-          # defineSecret parameters should automatically use secrets from Secret Manager.
+          echo "Attempting to deploy to DEV project: ${{ env.FIREBASE_PROJECT_ID_DEV }} using explicit --set-params for all..."
+          # Explicitly set all defined parameters using --set-params
           firebase deploy --only functions \
             --project ${{ env.FIREBASE_PROJECT_ID_DEV }} \
-            --set-params KOFFEE_KARMA_CHANNEL_ID=$KOFFEE_KARMA_CHANNEL_ID \
+            --set-params SLACK_BOT_TOKEN=$SLACK_BOT_TOKEN,SLACK_SIGNING_SECRET=$SLACK_SIGNING_SECRET,KOFFEE_KARMA_CHANNEL_ID=$KOFFEE_KARMA_CHANNEL_ID \
             --non-interactive --force
 
       # Deploy to PROD environment (handles push to main)
       - name: Deploy to Firebase (Prod)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env: # Pass secrets as step env vars for easier access
-          # SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN_PROD }} # Secrets handled by Secret Manager
-          # SLACK_SIGNING_SECRET: ${{ secrets.SLACK_SIGNING_SECRET_PROD }} # Secrets handled by Secret Manager
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN_PROD }}
+          SLACK_SIGNING_SECRET: ${{ secrets.SLACK_SIGNING_SECRET_PROD }}
           KOFFEE_KARMA_CHANNEL_ID: ${{ secrets.KOFFEE_KARMA_CHANNEL_ID_PROD }}
         run: |
-          echo "Attempting to deploy to PROD project: ${{ env.FIREBASE_PROJECT_ID_PROD }} using --set-params for strings..."
-          # Use --set-params for defineString parameters.
-          # defineSecret parameters should automatically use secrets from Secret Manager.
+          echo "Attempting to deploy to PROD project: ${{ env.FIREBASE_PROJECT_ID_PROD }} using explicit --set-params for all..."
+          # Explicitly set all defined parameters using --set-params
           firebase deploy --only functions \
             --project ${{ env.FIREBASE_PROJECT_ID_PROD }} \
-            --set-params KOFFEE_KARMA_CHANNEL_ID=$KOFFEE_KARMA_CHANNEL_ID \
+            --set-params SLACK_BOT_TOKEN=$SLACK_BOT_TOKEN,SLACK_SIGNING_SECRET=$SLACK_SIGNING_SECRET,KOFFEE_KARMA_CHANNEL_ID=$KOFFEE_KARMA_CHANNEL_ID \
             --non-interactive --force
       
       # No longer need to manually cleanup serviceAccountKey.json as it's not written to disk by this auth method
