@@ -8,8 +8,8 @@ import { defineString } from 'firebase-functions/params';
 // Define parameters using v2 SDK - these will be evaluated at deployment time
 // Values can be set in .env files for local emulation
 // See https://firebase.google.com/docs/functions/config-env
-const SLACK_BOT_TOKEN = defineString('SLACK_BOT_TOKEN');
-const SLACK_SIGNING_SECRET = defineString('SLACK_SIGNING_SECRET');
+const SLACK_BOT_TOKEN = defineString('SLACK_BOT_TOKEN', { secret: true });
+const SLACK_SIGNING_SECRET = defineString('SLACK_SIGNING_SECRET', { secret: true });
 const KOFFEE_KARMA_CHANNEL_ID = defineString('KOFFEE_KARMA_CHANNEL_ID');
 // Define other parameters as needed, e.g.:
 // const GOOGLE_APPLICATION_CREDENTIALS = defineString('GOOGLE_APPLICATION_CREDENTIALS');
