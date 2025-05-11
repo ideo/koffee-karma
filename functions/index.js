@@ -56,6 +56,12 @@ function initializeSlackApp() {
     logger.info('[initializeSlackApp] Initializing Slack App for the first time...');
     const token = SLACK_BOT_TOKEN.value();
     const signingSecret = SLACK_SIGNING_SECRET.value();
+
+    // TEMPORARY DEBUGGING - REMOVE IMMEDIATELY AFTER TEST
+    logger.info(`TEMPORARY_DEBUG: Token loaded: ${token ? 'Yes, length ' + token.length : 'No'}`);
+    logger.info(`TEMPORARY_DEBUG: Signing Secret loaded: ${signingSecret ? 'Yes, length ' + signingSecret.length : 'No'}`);
+    // END TEMPORARY DEBUGGING
+
     // const channelId = getConfig('KOFFEE_KARMA_CHANNEL_ID'); // Loaded but not directly used for App init
 
     if (!token || !signingSecret) {
