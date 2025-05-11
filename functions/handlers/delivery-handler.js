@@ -407,11 +407,29 @@ export async function handleOpenOrderModalForRunner({ ack, body, client, action,
             runnerId: runnerOfferData.runnerId, // The actual runner
             runnerName: runnerOfferData.runnerName, // The actual runner's name
             runnerCapabilities: runnerOfferData.capabilities, // Runner's stated capabilities for this offer
-            originalOfferMessageTs: messageTs // Store the TS of the offer message for linking
+            originalOfferMessageTs: messageTs, // Store the TS of the offer message for linking
+            originatingChannelId: KOFFEE_KARMA_CHANNEL_ID.value(), // Added for consistency
+            originatingChannelName: KOFFEE_KARMA_CHANNEL_ID.value() // Added for consistency
         };
 
-        const modalView = buildOrderModal(null, null, prefillData); // Pass prefillData
+        const privateMetadata = {
+            targetRunnerId: runnerId,
+            targetRunnerName: runnerOfferData.runnerName,
+            originalRunnerMessageTs: messageTs,
+            originatingChannelId: KOFFEE_KARMA_CHANNEL_ID.value()
+        };
 
+        // Pass runnerCapabilities to buildOrderModal so it can filter/style categories
+        // We are NOT passing initialValues here explicitly, so it defaults to {} in buildOrderModal
+        const modalView = buildOrderModal( 
+            {}, // Corrected: Pass an empty object for initialValues instead of null
+            null, // viewId
+            runnerOfferData.capabilities, // runnerCapabilities
+            KOFFEE_KARMA_CHANNEL_ID.value(), // originatingChannelId
+            null, // originatingChannelName - not strictly needed for modal build if channelId is there for metadata
+            privateMetadata // privateMetadata
+        );
+        
         await client.views.open({
             trigger_id: body.trigger_id,
             view: modalView
