@@ -470,35 +470,77 @@ function processExpiredOrders(snapshot, client, logger) {
 }
 
 // --- Helper function to process expired runner offers ---
-function processExpiredRunnerOffers(snapshot, client, logger) {
-    const promises = [];
+async function processExpiredRunnerOffers(snapshot, client, logger) {
+    const updatePromises = [];
+    const batch = admin.firestore().batch(); // Create a batch for Firestore updates
+
     snapshot.forEach(doc => {
         const offerId = doc.id;
         const offerData = doc.data();
-        if (!offerData.slackChannelId || !offerData.slackMessageTs || !offerData.createdAt || !offerData.durationMs) {
-            logger.warn(`[Runner Timer] Skipping formatting for expired offer ${offerId} due to potentially missing fields (checked slackChannelId, slackMessageTs, createdAt, durationMs). Will still attempt update.`);
-            // Don't return here, still attempt the basic update below
+        // Use requesterId as runnerId for offers, and requesterName as runnerName
+        const { slackMessageTs, slackChannelId, requesterId, requesterName = 'Unknown Runner' } = offerData; 
+
+        logger.info(`[Order Timer] Processing EXPIRED runner offer ID: ${offerId} by ${requesterName} (${requesterId})`);
+
+        // Update Firestore
+        const orderDocRef = admin.firestore().collection('orders').doc(offerId);
+        batch.update(orderDocRef, {
+            status: ORDER_STATUS.EXPIRED_OFFER,
+            updatedAt: admin.firestore.Timestamp.now()
+        });
+
+        // Update Public Slack message
+        if (slackMessageTs && slackChannelId) {
+            const publicExpiredText = `⌛ Offer from ${requesterName} expired.`; // Use requesterName as runner's name
+            const expiredMessage = {
+                channel: slackChannelId,
+                ts: slackMessageTs,
+                blocks: [], // Empty blocks to clear previous content
+                text: publicExpiredText
+            };
+            updatePromises.push(
+                client.chat.update(expiredMessage)
+                .then(() => logger.info(`[Order Timer] Updated Slack message for expired runner offer ${offerId}`))
+                .catch(err => logger.error(`[Order Timer] Error updating Slack message for expired runner offer ${offerId}:`, err))
+            );
+        } else {
+            logger.warn(`[Order Timer] Missing slackMessageTs or slackChannelId for expired runner offer ${offerId}. Cannot update public message.`);
         }
-        logger.info(`[Runner Timer] Expiring runner offer ${offerId} (${offerData.slackMessageTs})`);
-        promises.push(
-            doc.ref.update({ status: ORDER_STATUS.EXPIRED_OFFER }) // <<< Use EXPIRED_OFFER constant
-                .then(() => {
-                    // <<< REMOVED call to formatRunnerMessage and block generation >>>
-                    const runnerName = offerData.runnerName || 'Unknown Runner';
-                    // Use punk style text, use full name
-                    const expiredText = `⌛ Offer from ${runnerName} expired.`;
-                    logger.info(`[Runner Timer] Updating Slack message ${offerData.slackMessageTs} for expired offer ${offerId}.`);
-                    return client.chat.update({
-                        channel: offerData.slackChannelId,
-                        ts: offerData.slackMessageTs,
-                        blocks: [], // <<< SEND EMPTY BLOCKS to remove old content
-                        text: expiredText // <<< SEND SIMPLE TEXT
-                    });
-                })
-                .catch(error => logger.error(`[Runner Timer] Error during expiration chain for offer ${offerId} (${offerData.slackMessageTs}):`, error))
-        );
+
+        // Send DM to the runner (who is the requesterId for an offer)
+        if (requesterId) {
+            const punkDmText = `⌛ OFFER expired.\ntime ran out.`;
+            const dmMessage = {
+                channel: requesterId, 
+                text: punkDmText,
+                blocks: [
+                    {
+                        type: 'section',
+                        text: {
+                            type: 'mrkdwn',
+                            text: punkDmText
+                        }
+                    }
+                ]
+            };
+            updatePromises.push(
+                client.chat.postMessage(dmMessage)
+                .then(() => logger.info(`[Order Timer] Sent DM to runner ${requesterId} for expired offer ${offerId}`))
+                .catch(err => logger.error(`[Order Timer] Error sending DM to runner ${requesterId} for expired offer ${offerId}:`, err))
+            );
+        } else {
+            logger.warn(`[Order Timer] Missing requesterId for expired runner offer ${offerId}. Cannot send DM.`);
+        }
     });
-    return promises;
+
+    if (snapshot.size > 0) {
+        updatePromises.push(
+            batch.commit()
+            .then(() => logger.info(`[Order Timer] Firestore batch commit successful for ${snapshot.size} expired runner offers.`))
+            .catch(err => logger.error('[Order Timer] Firestore batch commit failed for expired runner offers:', err))
+        );
+    }
+    return Promise.all(updatePromises);
 }
 
 // --- Helper function to process expired CLAIMED orders ---
