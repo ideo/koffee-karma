@@ -2,7 +2,8 @@
  * Event Handler
  * Handles Slack events like member joining a channel.
  */
-import { getConfig } from '../utils/config.js';
+// import { getConfig } from '../utils/config.js';
+import { KOFFEE_KARMA_CHANNEL_ID } from '../utils/config.js';
 import { WELCOME_MESSAGES } from '../utils/constants.js';
 import { getOrCreatePlayer, updatePlayerKarma } from '../utils/database.js';
 import * as database from '../utils/database.js';
@@ -15,7 +16,7 @@ import * as database from '../utils/database.js';
  */
 async function handleMemberJoinedChannel({ event, client, logger }) {
     const { user: userId, channel: channelId } = event;
-    const targetChannelId = getConfig('KOFFEE_KARMA_CHANNEL_ID');
+    const targetChannelId = KOFFEE_KARMA_CHANNEL_ID.value();
 
     logger.info(`Received member_joined_channel event: User ${userId} joined channel ${channelId}`);
 

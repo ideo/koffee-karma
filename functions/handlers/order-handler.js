@@ -13,7 +13,7 @@ import {
   updateMessage,
   postMessageToDesignatedChannel 
 } from '../utils/message-formatter.js';
-import { getConfig } from '../utils/config.js'; // Import shared config getter
+import { DEVELOPER_SLACK_ID, KOFFEE_KARMA_CHANNEL_ID } from '../utils/config.js'; // ADD THIS
 import admin from 'firebase-admin'; // Needed for Firestore serverTimestamp
 import { WebClient } from '@slack/web-api'; // Added top-level import
 import { Timestamp } from 'firebase-admin/firestore'; // Make sure Timestamp is required
@@ -54,7 +54,7 @@ export async function handleClaimOrder(payload) {
   const clickerId = body.user.id;
   const channelId = body.container?.channel_id;
   const messageTs = body.container?.message_ts; // Keep for updating the message
-  const developerSlackId = getConfig('DEVELOPER_SLACK_ID'); // Get developer ID from config
+  const developerSlackId = DEVELOPER_SLACK_ID.value(); // UPDATED
 
   logger.info(`'claim_order' action received for order ID: ${orderId} from user ${clickerId}`);
 
@@ -240,7 +240,7 @@ export async function handleDeliverOrder({ ack, body, client, logger }) {
   const clickerId = body.user.id; // Should be the runner
   const channelId = body.container?.channel_id;
   const messageTs = body.container?.message_ts;
-  const developerSlackId = getConfig('DEVELOPER_SLACK_ID'); // Get developer ID
+  const developerSlackId = DEVELOPER_SLACK_ID.value(); // UPDATED
   
   logger.info(`'deliver_order' action received for order ID: ${orderId} from user ${clickerId}`);
 
@@ -605,7 +605,7 @@ async function handleOrderSubmission({ ack, body, view, client, logger }) {
     logger.info('[handleOrderSubmission] View submission received.');
     
     const requesterId = body.user.id;
-    const channelIdFromConfig = getConfig('KOFFEE_KARMA_CHANNEL_ID');
+    const channelIdFromConfig = KOFFEE_KARMA_CHANNEL_ID.value(); // UPDATED
     // const triggerId = body.trigger_id; // No longer using trigger_id for context
 
     // --- Determine Flow Type Based on private_metadata --- 

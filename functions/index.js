@@ -21,7 +21,7 @@ import admin from 'firebase-admin';
 import bolt from '@slack/bolt';
 const { App, ExpressReceiver, LogLevel } = bolt;
 import express from 'express';
-import { getConfig } from './utils/config.js';
+import { SLACK_BOT_TOKEN, SLACK_SIGNING_SECRET } from './utils/config.js';
 import { logger } from './utils/logger.js';
 // --- Database Imports ---
 import * as database from './utils/database.js'; // Using namespace import for DB
@@ -54,8 +54,8 @@ let _expressReceiver;
 function initializeSlackApp() {
   if (!_slackApp) {
     logger.info('[initializeSlackApp] Initializing Slack App for the first time...');
-    const token = getConfig('SLACK_BOT_TOKEN');
-    const signingSecret = getConfig('SLACK_SIGNING_SECRET');
+    const token = SLACK_BOT_TOKEN.value();
+    const signingSecret = SLACK_SIGNING_SECRET.value();
     // const channelId = getConfig('KOFFEE_KARMA_CHANNEL_ID'); // Loaded but not directly used for App init
 
     if (!token || !signingSecret) {
@@ -212,8 +212,8 @@ export const orderTimerUpdater = onMessagePublished(
         logger.info(`[${ORDER_TIMER_TOPIC}] Received Pub/Sub message:`, event.id);
 
         const tempApp = new App({ // This is fine, it's a temporary client for this job
-            token: getConfig('SLACK_BOT_TOKEN'),
-            signingSecret: getConfig('SLACK_SIGNING_SECRET'),
+            token: SLACK_BOT_TOKEN.value(),
+            signingSecret: SLACK_SIGNING_SECRET.value(),
             logLevel: LogLevel.DEBUG
         });
         const client = tempApp.client;

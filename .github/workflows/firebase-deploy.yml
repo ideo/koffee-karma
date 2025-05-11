@@ -63,11 +63,9 @@ jobs:
       - name: Deploy to Firebase (Prod)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
-          echo "Attempting to deploy to PROD project: ${{ env.FIREBASE_PROJECT_ID_PROD }} setting env vars via npx..."
-          # Similar to dev, relying on Secret Manager for Gen 2 functions.
+          echo "Attempting to deploy to PROD project: ${{ env.FIREBASE_PROJECT_ID_PROD }} ..."
+          # Relying on Secret Manager for Gen 2 functions and params defined with defineSecret/defineString.
+          # The google-github-actions/auth step handles authentication.
           firebase deploy --only functions --project ${{ env.FIREBASE_PROJECT_ID_PROD }} --force
-        env:
-          FIREBASE_TOKEN: ${{ steps.auth_prod.outputs.token }}
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ steps.auth_prod.outputs.credentials_file_path }}
       
       # No longer need to manually cleanup serviceAccountKey.json as it's not written to disk by this auth method

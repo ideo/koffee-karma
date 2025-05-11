@@ -2,7 +2,7 @@
  * Utility functions for formatting Slack Block Kit messages
  */
 import { ORDER_STATUS, LOCATIONS, DRINK_CATEGORIES } from './constants.js';
-import { getConfig } from './config.js'; // Import shared config getter
+import { KOFFEE_KARMA_CHANNEL_ID } from './config.js'; // ADD THIS
 import path from 'path'; // Needed for map generation file path
 import fs from 'fs';     // Needed for map generation file read
 import { fileURLToPath } from 'url'; // Needed for __dirname in ESM
@@ -630,7 +630,7 @@ export function formatRunnerMessage(runnerData, messageTs) {
         runnerId: runnerId, 
         runnerName: runnerName,
         messageTs: messageTs,
-        channelId: runnerData.slackChannelId || getConfig('KOFFEE_KARMA_CHANNEL_ID'),
+        channelId: runnerData.slackChannelId || KOFFEE_KARMA_CHANNEL_ID.value(),
         capabilities: capabilities
     }); 
     actions.push({
@@ -883,9 +883,15 @@ export function generateMap(locationKey, options = { includeLegend: true }) {
  * @returns {Promise<object>} - Result from chat.postMessage
  */
 export async function postMessageToDesignatedChannel(client, options) {
-    const channelId = getConfig('KOFFEE_KARMA_CHANNEL_ID');
+    const { text, blocks, orderId } = options;
+    let channelId = options.channelId; // If a channelId is passed in options, use it
+
     if (!channelId) {
-        throw new Error('KOFFEE_KARMA_CHANNEL_ID is not configured.');
+        channelId = KOFFEE_KARMA_CHANNEL_ID.value(); // UPDATED
+        if (!channelId) {
+            logger.error(`[postMessageToDesignatedChannel] KOFFEE_KARMA_CHANNEL_ID is not configured and not provided in options. Cannot post message for order ${orderId}.`);
+            throw new Error('KOFFEE_KARMA_CHANNEL_ID is not configured.');
+        }
     }
     try {
         const result = await client.chat.postMessage({

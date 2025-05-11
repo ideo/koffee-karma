@@ -5,7 +5,7 @@
 import { logger } from '../utils/logger.js';
 import { getLeaderboard } from '../utils/database.js';
 import { formatLeaderboard } from '../utils/message-formatter.js';
-import { getConfig } from '../utils/config.js';
+import { KOFFEE_KARMA_CHANNEL_ID } from '../utils/config.js';
 
 export const leaderboardHandler = (app) => {
   app.command('/leaderboard', async ({ ack, body, client, logger }) => {
@@ -38,7 +38,7 @@ export const leaderboardHandler = (app) => {
       // Continue processing even if placeholder fails
     }
 
-    const channelId = getConfig('KOFFEE_KARMA_CHANNEL_ID');
+    const channelId = KOFFEE_KARMA_CHANNEL_ID.value();
 
     try {
       // Fetch top players using the imported function

@@ -6,7 +6,7 @@ import { ORDER_STATUS, DRINK_CATEGORIES, DELIVERY_DURATIONS } from '../utils/con
 import { database } from '../lib/firebase.js';
 import { buildDeliveryModal, buildOrderModal } from '../utils/modal-builder.js';
 import { formatRunnerMessage } from '../utils/message-formatter.js';
-import { getConfig } from '../utils/config.js';
+import { KOFFEE_KARMA_CHANNEL_ID, DEVELOPER_SLACK_ID } from '../utils/config.js';
 import admin from 'firebase-admin';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 
@@ -137,7 +137,7 @@ async function handleDeliverySubmission({ ack, body, view, client, logger }) {
         // --- Post Placeholder Message --- 
         logger.debug(`Posting placeholder message for runner offer...`);
         const placeholderResult = await client.chat.postMessage({
-            channel: getConfig('KOFFEE_KARMA_CHANNEL_ID'),
+            channel: KOFFEE_KARMA_CHANNEL_ID.value(),
             text: `Processing ${runnerName}'s offer...`,
             blocks: [{
                 type: 'section',
@@ -169,7 +169,7 @@ async function handleDeliverySubmission({ ack, body, view, client, logger }) {
         // --- Update Placeholder with Final Message ---
         logger.info(`Updating placeholder message ${messageTs} with final runner content...`);
         const updateResult = await client.chat.update({
-            channel: getConfig('KOFFEE_KARMA_CHANNEL_ID'),
+            channel: KOFFEE_KARMA_CHANNEL_ID.value(),
             ts: messageTs, // Use the placeholder's TS
             text: `${runnerName} is available to deliver drinks for ${selectedDurationMinutes} minutes!`, // Final fallback text
             blocks: finalRunnerMessageBlocks
@@ -186,7 +186,7 @@ async function handleDeliverySubmission({ ack, body, view, client, logger }) {
 
         // <<< ADD: Fetch Channel Name >>>
         let slackChannelName = null;
-        const channelIdToFetch = getConfig('KOFFEE_KARMA_CHANNEL_ID');
+        const channelIdToFetch = KOFFEE_KARMA_CHANNEL_ID.value();
         try {
             const channelInfo = await client.conversations.info({ channel: channelIdToFetch });
             if (channelInfo.ok) {
@@ -254,208 +254,187 @@ async function handleDeliverySubmission({ ack, body, view, client, logger }) {
  * Handle cancellation of a runner's own availability offer
  */
 async function handleCancelReadyOffer({ ack, body, client, logger }) {
-     await ack();
-     const userId = body.user.id;
-     
-     const rawActionValue = body.actions?.[0]?.value;
-     logger.debug(`[handleCancelReadyOffer] Received raw action value: ${rawActionValue}`);
-     
-     let messageTs = null;
-     try {
-       const parsedValue = JSON.parse(rawActionValue);
-       messageTs = parsedValue.messageTs; // Extract messageTs from parsed JSON
-     } catch (e) { 
-       logger.error(`[handleCancelReadyOffer] Failed to parse action value JSON: ${rawActionValue}`, e);
-       await client.chat.postEphemeral({
-           channel: userId,
-           user: userId,
-           text: "Bot tripped. Couldn't ID the offer to cancel."
-       });
-       return;
-     }
-     
-     const channelId = body.container?.channel_id;
-     
-     logger.info(`User ${userId} attempting to cancel offer ${messageTs}`);
+    await ack();
+    const userId = body.user.id;
+    const actionValue = JSON.parse(body.actions[0].value);
+    const messageTs = actionValue.messageTs;
+    // const channelId = actionValue.channelId; // No longer in value from latest formatRunnerMessage
 
-     if (!messageTs) {
-        // This check should technically be redundant now if parsing succeeds, but keep as safety net
-        logger.error(`Cannot cancel offer: messageTs is missing after parsing JSON.`);
-        await client.chat.postEphemeral({
-            channel: userId, 
-            user: userId,
-            text: "Bot tripped. Couldn't ID the offer to cancel."
-        });
-        return;
-     }
-     // Default to configured channel if container channel not available
-     const targetChannelId = channelId || getConfig('KOFFEE_KARMA_CHANNEL_ID');
+    logger.info(`User ${userId} initiated cancel_ready_offer for message ${messageTs}`);
 
-     try {
-        // 1. Fetch the offer data from Firestore using messageTs as orderId
-        const offerDocRef = admin.firestore().collection('orders').doc(messageTs);
-        const offerDoc = await offerDocRef.get();
+    try {
+        const orderDocRef = admin.firestore().collection('orders').doc(messageTs);
+        const orderDoc = await orderDocRef.get();
 
-        if (!offerDoc.exists) {
-            logger.warn(`Cannot cancel offer ${messageTs}: Offer not found in Firestore.`);
-             await client.chat.postEphemeral({
-                channel: userId,
+        if (!orderDoc.exists) {
+            logger.warn(`Runner offer ${messageTs} not found in Firestore for cancellation.`);
+            await client.chat.postEphemeral({
+                channel: userId, // DM user
                 user: userId,
-                text: "Can't find that offer. Maybe it expired or got claimed/scrapped."
+                text: "Offer not found. Maybe it already expired or was actioned?"
             });
             return;
         }
 
-        const offerData = offerDoc.data();
+        const orderData = orderDoc.data();
 
-        // 2. Validate user is the original runner
-        if (offerData.runnerId !== userId) {
-            logger.warn(`User ${userId} attempted to cancel offer ${messageTs} belonging to ${offerData.runnerId}.`);
+        // Authorization: Only the original runner can cancel their own offer
+        if (orderData.runnerId !== userId) {
+            logger.warn(`User ${userId} attempted to cancel offer ${messageTs} owned by ${orderData.runnerId}. Denied.`);
             await client.chat.postEphemeral({
-                channel: body.container.channel_id, // Send ephemeral to the channel of interaction
+                channel: userId, // DM user
                 user: userId,
                 text: "Not your offer to cancel."
             });
             return;
         }
 
-        // 3. Validate status is 'offered'
-        if (offerData.status !== ORDER_STATUS.OFFERED) {
-             logger.warn(`Offer ${messageTs} is already in status ${offerData.status}, cannot cancel.`);
+        if (orderData.status !== ORDER_STATUS.OFFERED) {
+            logger.warn(`Runner offer ${messageTs} is not in 'OFFERED' status (current: ${orderData.status}). Cannot cancel.`);
              await client.chat.postEphemeral({
-                channel: userId,
+                channel: userId, // DM user
                 user: userId,
-                text: "Too late. Offer isn't active anymore (status: ${offerData.status})."
+                text: `This offer is no longer active (status: ${orderData.status}). It may have been claimed or expired.`
             });
-             // Attempt to update the message anyway to reflect the final state, in case it got stuck
-             // const finalBlocks = formatRunnerMessage({ ...offerData, status: offerData.status }, offerData.messageTs);
-             await client.chat.update({
-                channel: targetChannelId,
-                ts: messageTs,
-                blocks: [], // <<< REMOVE existing blocks
-                text: `Offer cancelled by ${offerData.runnerName}.` // Use full name
-             }).catch(e => logger.error(`Error updating Slack message for already processed offer ${messageTs}:`, e));
             return;
         }
 
-        // 4. Update Firestore status to CANCELLED
-        await offerDocRef.update({ status: ORDER_STATUS.CANCELLED });
-        logger.info(`Offer ${messageTs} status updated to CANCELLED in Firestore.`);
+        // Update Firestore: Mark as CANCELLED_RUNNER
+        await orderDocRef.update({
+            status: ORDER_STATUS.CANCELLED_RUNNER, // Use a specific status for runner cancelled offers
+            updatedAt: FieldValue.serverTimestamp()
+        });
+        logger.info(`Runner offer ${messageTs} status updated to CANCELLED_RUNNER in Firestore.`);
 
-        // 5. Update Slack Message to simple cancelled text
-        const runnerName = offerData.runnerName || userId;
+        // Update Slack message to reflect cancellation
+        const runnerName = orderData.runnerName || 'Unknown Runner';
+        // Use punk style text
+        const cancelledText = `~~ Offer from ${runnerName} cancelled ~~`;
         await client.chat.update({
-            channel: targetChannelId,
+            channel: orderData.slackChannelId || KOFFEE_KARMA_CHANNEL_ID.value(), // UPDATED with fallback
             ts: messageTs,
-            blocks: [], // <<< REMOVE existing blocks
-            text: `Offer cancelled by ${runnerName}.` // Use full name
+            blocks: [], // Clear blocks
+            text: cancelledText
         });
-        logger.info(`Updated Slack message ${messageTs} to cancelled state.`);
+        logger.info(`Slack message for runner offer ${messageTs} updated to reflect cancellation.`);
 
-        // <<< CHANGE to send DM instead of ephemeral >>>
-        try {
-            // Format DM according to new style
-            const dmText = "offer cancelled";
-            await client.chat.postMessage({
-                channel: userId, // Send DM to the user who cancelled
-                user: userId,
-                text: dmText
-            });
-            logger.info(`Sent offer cancellation DM to user ${userId}.`);
-        } catch (dmError) {
-             logger.error(`Failed to send offer cancellation DM to user ${userId}:`, dmError);
-        }
-        
-        // 7. TODO: Cancel any scheduled timers (if separate timer mechanism used). 
-        // The main timer updater should stop processing it once status is cancelled.
+        // Send DM confirmation to the runner
+        // Use punk style text
+        const dmText = "Offer cancelled. You're off the hook.";
+        await client.chat.postMessage({
+            channel: userId,
+            text: dmText
+        });
+        logger.info(`Sent cancellation confirmation DM to runner ${userId}.`);
 
-     } catch (error) {
-        logger.error(`Error cancelling offer ${messageTs} for user ${userId}:`, error);
-         await client.chat.postEphemeral({
-            channel: userId, 
+    } catch (error) {
+        logger.error(`Error handling cancel_ready_offer for message ${messageTs} by user ${userId}:`, error);
+        await client.chat.postEphemeral({
+            channel: userId, // DM User
             user: userId,
-            text: "System choked cancelling offer. Try again. Error: ${error.message}"
+            text: `Bot tripped cancelling offer. Try again. Error: ${error.message}`
         });
-     }
+    }
 }
 
 /**
- * Handle the 'Order Now' button click from a runner availability message.
- * Opens a loading modal, fetches data, then updates the modal.
+ * Handle the 'order_now' button press from a runner's availability message.
+ * This function will open the standard order modal, but pre-fill it with the runner's information.
  */
-export async function handleOpenOrderModalForRunner({ ack, body, client, logger }) {
-    // --- ACKNOWLEDGE IMMEDIATELY --- 
-    await ack(); 
-    
-    const action = body.actions[0];
-    const userId = body.user.id; // User clicking 'ORDER NOW'
-    const triggerId = body.trigger_id; // <<< USE THIS to open modal
+export async function handleOpenOrderModalForRunner({ ack, body, client, action, logger }) {
+    await ack();
+    const requesterId = body.user.id; // The user who clicked "ORDER NOW"
+    logger.info(`User ${requesterId} clicked 'order_now' button. Action value:`, action.value);
 
-    // Extract runner info from the button's value
-    let runnerInfo = {};
-    try {
-        runnerInfo = JSON.parse(action.value); 
-    } catch (e) {
-        logger.error('[handleOpenOrderModalForRunner] Failed to parse runner info from action value:', action.value, e);
-        await client.chat.postEphemeral({
-            channel: body.channel.id,
-            user: userId,
-            text: 'Bot tripped. Couldn\'t read runner info.'
-        });
-        return;
-    }
-
-    const { runnerId, runnerName, messageTs, channelId, capabilities } = runnerInfo;
-    logger.info(`[handleOpenOrderModalForRunner] User ${userId} clicked ORDER NOW for runner ${runnerId} (${runnerName}) from offer ${messageTs}`);
-
-    // Prevent runner from ordering from themselves, unless developer
-    const developerSlackId = getConfig('DEVELOPER_SLACK_ID'); // Get developer ID
-    if (userId === runnerId && userId !== developerSlackId) { // Add developer check
-        logger.warn(`Runner ${userId} tried to order from their own offer. DENIED (not developer).`); // Updated log
-        await client.chat.postEphemeral({
-            channel: channelId, 
-            user: userId,
-            text: 'Can\'t order from yourself, chief.'
-        });
-        return;
-    } else if (userId === runnerId && userId === developerSlackId) {
-        logger.info(`Developer ${userId} attempting to order from own offer. ALLOWED.`); // Log override
-    }
+    let runnerOfferData;
+    let parsedValue;
 
     try {
-        // Build the order modal, passing runner info in private_metadata
-        const metadata = {
-            targetRunnerId: runnerId,
-            runnerName: runnerName, // <<< Pass runner name
-            originalRunnerMessageTs: messageTs,
-            channelId: channelId
+        parsedValue = JSON.parse(action.value);
+        const { runnerId, messageTs } = parsedValue; // runnerId is the ID of the person offering to run
+
+        // --- Authorization: Runner cannot order from themselves --- 
+        if (requesterId === runnerId) {
+            // Developer override: Check if the requester is the developer
+            const developerSlackId = DEVELOPER_SLACK_ID.value(); // UPDATED
+            if (requesterId === developerSlackId) {
+                logger.warn(`Developer ${developerSlackId} is overriding self-order restriction for testing.`);
+            } else {
+                logger.warn(`Runner ${runnerId} attempted to order from their own offer. Denied.`);
+                await client.chat.postEphemeral({
+                    channel: requesterId,
+                    user: requesterId,
+                    text: "Can't order from yourself, mate."
+                });
+                return;
+            }
+        }
+        // --- End Authorization ---
+
+        // Fetch the original runner offer to ensure it's still valid
+        const offerDocRef = admin.firestore().collection('orders').doc(messageTs);
+        const offerDoc = await offerDocRef.get();
+
+        if (!offerDoc.exists) {
+            logger.warn(`Original runner offer ${messageTs} not found. Cannot open order modal.`);
+            await client.chat.postEphemeral({
+                channel: requesterId,
+                user: requesterId,
+                text: "That delivery offer is no longer available (not found)."
+            });
+            return;
+        }
+        runnerOfferData = offerDoc.data();
+
+        if (runnerOfferData.status !== ORDER_STATUS.OFFERED) {
+            logger.warn(`Original runner offer ${messageTs} is not in 'OFFERED' status (current: ${runnerOfferData.status}). Cannot open order modal.`);
+            let statusMessage = `This delivery offer is no longer available (status: ${runnerOfferData.status}).`;
+            if(runnerOfferData.status === ORDER_STATUS.CLAIMED && runnerOfferData.requesterId === requesterId){
+                 statusMessage = "You've already placed an order against this offer.";
+            } else if (runnerOfferData.status === ORDER_STATUS.CLAIMED){
+                 statusMessage = `This delivery offer has already been claimed by <@${runnerOfferData.requesterId}>.`;
+            }
+            await client.chat.postEphemeral({
+                channel: requesterId,
+                user: requesterId,
+                text: statusMessage
+            });
+            return;
+        }
+
+        // Extract necessary runner info from the *offer document*
+        const prefillData = {
+            runnerId: runnerOfferData.runnerId, // The actual runner
+            runnerName: runnerOfferData.runnerName, // The actual runner's name
+            runnerCapabilities: runnerOfferData.capabilities, // Runner's stated capabilities for this offer
+            originalOfferMessageTs: messageTs // Store the TS of the offer message for linking
         };
-        // Pass runner capabilities to filter category dropdown
-        const modalView = buildOrderModal({}, null, capabilities, channelId, 'Unknown', metadata);
 
-        logger.debug(`[handleOpenOrderModalForRunner] Opening modal for user ${userId} with trigger_id: ${triggerId}`);
-        const result = await client.views.open({
-            trigger_id: triggerId, // Use the trigger_id from the payload
+        const modalView = buildOrderModal(null, null, prefillData); // Pass prefillData
+
+        await client.views.open({
+            trigger_id: body.trigger_id,
             view: modalView
         });
-        logger.info(`[handleOpenOrderModalForRunner] Modal opened successfully: ${result.ok}`);
+        logger.info(`Opened order modal for ${requesterId} against runner offer ${messageTs} by ${prefillData.runnerName}.`);
 
     } catch (error) {
-        logger.error(`[handleOpenOrderModalForRunner] Error opening modal for runner ${runnerId}:`, error);
-        let errorText = 'Bot tripped opening order modal.';
-        if (error.data?.error === 'exchanged_trigger_id' || error.message.includes('trigger_id')) {
-             errorText = 'Took too long to respond. Try clicking ORDER NOW again.';
-        } else if (error.data?.error) {
-            errorText += ` Error: ${error.data.error}`;
-        } else {
-            errorText += ` Error: ${error.message}`;
+        logger.error(`Error in handleOpenOrderModalForRunner for user ${requesterId}:`, error);
+        if (error instanceof SyntaxError && action && action.value) {
+             logger.error(`Potential JSON parsing error in handleOpenOrderModalForRunner. Action value: ${action.value}`);
         }
-        
+        if (parsedValue && !parsedValue.runnerId) {
+            logger.error(`Missing runnerId in parsed action value in handleOpenOrderModalForRunner. Parsed value:`, parsedValue);
+        }
+        if (runnerOfferData && !runnerOfferData.runnerId) {
+            logger.error(`Missing runnerId in runnerOfferData in handleOpenOrderModalForRunner. Offer Data:`, runnerOfferData);
+        }
+
         await client.chat.postEphemeral({
-            channel: channelId, // Use channel from parsed metadata
-            user: userId,
-            text: errorText
-        }).catch(ephemError => logger.error('[handleOpenOrderModalForRunner] Failed to send ephemeral error:', ephemError));
+            channel: requesterId,
+            user: requesterId,
+            text: `Bot tripped opening the order form for that runner. Try again. Error: ${error.message}`
+        });
     }
 }
 

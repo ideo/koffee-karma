@@ -6,7 +6,7 @@
 import { CloudSchedulerClient } from '@google-cloud/scheduler';
 import { v4 as uuidv4 } from 'uuid';
 import { logger } from './logger.js';
-import { getConfig } from './config.js'; // Use config for project ID and location
+// import { getConfig } from './utils/config.js'; // REMOVE THIS - No longer needed here
 
 // Initialize client (only happens once)
 const schedulerClient = new CloudSchedulerClient();
@@ -15,9 +15,14 @@ const schedulerClient = new CloudSchedulerClient();
 let projectLocationInfo = null;
 function getProjectLocation() {
     if (!projectLocationInfo) {
-        const projectId = process.env.GCLOUD_PROJECT || getConfig('GCLOUD_PROJECT');
-        const location = process.env.CLOUD_FUNCTION_REGION || getConfig('CLOUD_FUNCTION_REGION') || 'us-west1'; // Default to function region or us-west1
+        const projectId = process.env.GCLOUD_PROJECT;
+        // For Gen2 functions (Cloud Run), region might be available in other env vars like CLOUD_RUN_REGION
+        // Defaulting to 'us-west1' as a fallback if no specific region env var is consistently available.
+        const location = process.env.CLOUD_RUN_REGION || process.env.FUNCTION_REGION || 'us-west1'; 
         if (!projectId) {
+            // This should ideally not happen in a deployed GCP environment.
+            // If running locally and GCLOUD_PROJECT is not set, this will throw.
+            logger.error('Could not determine Google Cloud Project ID. Ensure GCLOUD_PROJECT environment variable is set.');
             throw new Error('Could not determine Google Cloud Project ID.');
         }
         projectLocationInfo = {
