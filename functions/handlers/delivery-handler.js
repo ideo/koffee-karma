@@ -309,7 +309,7 @@ async function handleCancelReadyOffer({ ack, body, client, logger }) {
         // Update Slack message to reflect cancellation
         const runnerName = orderData.runnerName || 'Unknown Runner';
         // Use punk style text
-        const cancelledText = `~~ Offer from ${runnerName} cancelled ~~`;
+        const cancelledText = `Offer cancelled by ${runnerName}.`;
         await client.chat.update({
             channel: orderData.slackChannelId || KOFFEE_KARMA_CHANNEL_ID.value(), // UPDATED with fallback
             ts: messageTs,
