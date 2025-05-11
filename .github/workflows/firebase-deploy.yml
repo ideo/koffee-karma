@@ -56,10 +56,11 @@ jobs:
         if: (github.event_name == 'pull_request' && github.base_ref == 'dev') || (github.event_name == 'push' && github.ref == 'refs/heads/dev')
         run: |
           echo "Attempting to deploy to DEV project: ${{ env.FIREBASE_PROJECT_ID_DEV }} setting env vars via npx..."
-          # Attempt to set environment variables during deployment (syntax might vary based on firebase-tools version)
-          # For Gen 2 functions using defineString with secrets, this direct setting might be redundant or problematic
-          # if the CLI version doesn't support it well.
-          # We will rely on the functions accessing secrets from Google Cloud Secret Manager.
+          echo " ---- Listing firebase-functions package.json ---- "
+          cat functions/node_modules/firebase-functions/package.json || echo "firebase-functions package.json not found"
+          echo " ---- Listing firebase-functions directory ---- "
+          ls -la functions/node_modules/firebase-functions || echo "firebase-functions directory not found"
+          echo " ---- End diagnostic info ---- "
           firebase deploy --only functions --project ${{ env.FIREBASE_PROJECT_ID_DEV }} --force
 
       # Deploy to PROD environment (handles push to main)
