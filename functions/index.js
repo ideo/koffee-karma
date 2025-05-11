@@ -57,11 +57,6 @@ function initializeSlackApp() {
     const token = SLACK_BOT_TOKEN.value();
     const signingSecret = SLACK_SIGNING_SECRET.value();
 
-    // TEMPORARY DEBUGGING - REMOVE IMMEDIATELY AFTER TEST
-    logger.info(`TEMPORARY_DEBUG: Token loaded: ${token ? 'Yes, length ' + token.length : 'No'}`);
-    logger.info(`TEMPORARY_DEBUG: Signing Secret loaded: ${signingSecret ? 'Yes, length ' + signingSecret.length : 'No'}`);
-    // END TEMPORARY DEBUGGING
-
     // const channelId = getConfig('KOFFEE_KARMA_CHANNEL_ID'); // Loaded but not directly used for App init
 
     if (!token || !signingSecret) {
@@ -198,7 +193,8 @@ export const slack = onRequest(
     {
         region: "us-west1",
         memory: "256MiB",
-        minInstances: 1
+        minInstances: 1,
+        secrets: ["SLACK_BOT_TOKEN", "SLACK_SIGNING_SECRET", "KOFFEE_KARMA_CHANNEL_ID", "DEVELOPER_SLACK_ID"]
     },
     (request, response) => {
       initializeSlackApp(); // Crucial: Ensure Slack app is initialized before firebaseApp handles request
@@ -213,7 +209,11 @@ export const slack = onRequest(
 const ORDER_TIMER_TOPIC = 'check-order-timers';
 
 export const orderTimerUpdater = onMessagePublished(
-    { topic: ORDER_TIMER_TOPIC, region: 'us-west1' },
+    { 
+        topic: ORDER_TIMER_TOPIC, 
+        region: 'us-west1',
+        secrets: ["SLACK_BOT_TOKEN", "SLACK_SIGNING_SECRET", "KOFFEE_KARMA_CHANNEL_ID", "DEVELOPER_SLACK_ID"]
+    },
     async (event) => {
         logger.info(`[${ORDER_TIMER_TOPIC}] Received Pub/Sub message:`, event.id);
 
