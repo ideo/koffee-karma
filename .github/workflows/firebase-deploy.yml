@@ -46,6 +46,7 @@ jobs:
 
       - name: Install function dependencies
         run: |
+          rm -rf node_modules package-lock.json
           npm ci
           npm install firebase-functions@latest
         working-directory: ./functions
