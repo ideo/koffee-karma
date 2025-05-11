@@ -3,7 +3,7 @@
  * Defines parameters that will be sourced from environment variables
  * or Google Cloud Secret Manager.
  */
-import { defineString, defineSecret } from 'firebase-functions/v2/params';
+import { defineString, defineSecret } from 'firebase-functions/params';
 
 // Secrets - These will be sourced from Google Cloud Secret Manager
 // Ensure these secret names match what's stored in Secret Manager.
