@@ -45,7 +45,9 @@ jobs:
         run: npm install -g firebase-tools@14.3.0 # Pin to specific recent version
 
       - name: Install function dependencies
-        run: npm ci
+        run: |
+          npm ci
+          npm install firebase-functions@latest
         working-directory: ./functions
 
       # Deploy to DEV environment (handles both PR to dev and push to dev)
