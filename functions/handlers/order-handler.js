@@ -622,15 +622,15 @@ async function handleOrderSubmission({ ack, body, view, client, logger }) {
             const metadata = JSON.parse(view.private_metadata);
             logger.debug('[handleOrderSubmission] Parsed metadata:', metadata);
             // Check if parsed object has all required fields
-            if (metadata.targetRunnerId && metadata.originalRunnerMessageTs && metadata.channelId) { 
+            if (metadata.targetRunnerId && metadata.originalRunnerMessageTs && metadata.originatingChannelId) { 
                 isTargetedOrder = true;
                 targetRunnerId = metadata.targetRunnerId;
                 originalRunnerMessageTs = metadata.originalRunnerMessageTs;
-                channelIdFromMetadata = metadata.channelId;
+                channelIdFromMetadata = metadata.originatingChannelId;
                 runnerNameFromMetadata = metadata.runnerName; // Get runner name if passed
                 logger.info(`[handleOrderSubmission] Detected TARGETED order via metadata. Runner: ${targetRunnerId}, Offer TS: ${originalRunnerMessageTs}, Channel: ${channelIdFromMetadata}`);
             } else {
-                 logger.debug(`[handleOrderSubmission] Metadata parsed, but missing required keys. Found: targetRunnerId=${!!metadata.targetRunnerId}, originalRunnerMessageTs=${!!metadata.originalRunnerMessageTs}, channelId=${!!metadata.channelId}`);
+                 logger.debug(`[handleOrderSubmission] Metadata parsed, but missing required keys. Found: targetRunnerId=${!!metadata.targetRunnerId}, originalRunnerMessageTs=${!!metadata.originalRunnerMessageTs}, originatingChannelId=${!!metadata.originatingChannelId}`);
                  // Assume standard order if keys missing
                  isTargetedOrder = false; 
             }
