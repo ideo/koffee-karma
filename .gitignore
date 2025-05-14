@@ -86,4 +86,7 @@ firestore-data/
 # dist/ # If this is generated output
 
 # Firebase emulators log
-ui-debug.log 
+ui-debug.log
+
+# Jest output
+jest_output.json 

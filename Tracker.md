@@ -106,3 +106,33 @@ This document meticulously tracks the development tasks and **intended behaviors
 ---
 
 - *Note: Firestore fields are now `karma` and `reputation`.*
+
+---
+
+## Integration Tests
+
+| Category | Task | Status | Priority | Notes / Updates |
+|:---|:---|:---|:---|:---|
+| User Init & Basic Commands | New User First Interaction (`/karma`) | ✅ Done | High | Verify new player doc in Firestore, initial Karma/Reputation/Title in ephemeral message. |
+| User Init & Basic Commands | `/karma` Command for Existing User | ✅ Done | Medium | Verify correct Karma/Reputation/Title displayed for existing user; no data change in Firestore. |
+| `/order` Flow | Successful Order Placement (Self) | ✅ Done | High | Verify Karma deduction, `orders` doc creation (self-recipient, status `ordered`, cost, expiry), Slack channel message (via mocks), DM confirmation (via mocks). Resolved `expect(mockChatUpdate)` assertion. |
+| `/order` Flow | Successful Order Placement (Gift for Another User) | 🚧 Not Started | High | Verify Karma deduction, `orders` doc (gift-recipient, status `ordered`, cost, expiry), Slack channel message (`(GIFT)` label), DM confirmation. |
+| `/order` Flow | Order Attempt with Insufficient Karma | 🚧 Not Started | High | Verify Karma unchanged, no order doc, ephemeral error message. |
+| `/order` Flow | Order Modal Input Validation (Missing Category/Location) | 🚧 Not Started | Medium | Verify modal shows inline error, submission prevented, no Firestore changes. |
+| `/order` Flow | Order Cancellation by Requester (Before Claim) | 🚧 Not Started | High | Verify order status to `cancelled`, Karma refunded to requester, Slack message updates (cancelled text, buttons removed), DM confirmation. |
+| `/order` Flow | Order Expiration (Unclaimed) | 🚧 Not Started | High | Verify order status to `expired`, Karma refunded, Slack message updates (expired text, buttons removed), DM confirmation. (Requires `orderTimerUpdater` execution). |
+| `/deliver` Flow | Successful Runner Offer Creation | 🚧 Not Started | High | Verify runner `capabilities` updated in `players`, new `orders` doc (status `OFFERED`, capabilities, duration, expiry, `initiatedBy: 'runner'`), Slack channel message (availability, buttons), ephemeral confirmation. |
+| `/deliver` Flow | Runner Offer Expiration | 🚧 Not Started | Medium | Verify offer doc status to `EXPIRED_OFFER`, Slack message updates (expired text, buttons removed). (Requires `orderTimerUpdater` execution). |
+| `/deliver` Flow | Runner Cancels Own Offer | 🚧 Not Started | Medium | Verify offer doc status updated (e.g., `CANCELLED_OFFER`), Slack message updates (buttons removed). |
+| `/deliver` Flow | User Successfully Orders via "ORDER NOW" on Runner Offer | 🚧 Not Started | High | Verify offer doc updates to `CLAIMED` (requester set, drink details, `timeClaimed`), requester Karma deducted, Slack message updates (claimed status, new buttons), DMs to requester & runner. |
+| `/deliver` Flow | User Orders via "ORDER NOW" - Incompatible Drink Category | 🚧 Not Started | Medium | Verify modal shows inline error, submission blocked, no Firestore changes. |
+| `/deliver` Flow | Runner Attempts to "ORDER NOW" on Own Offer | 🚧 Not Started | Medium | Verify ephemeral error, modal does not open/submission blocked, no Firestore changes. |
+| `/deliver` Flow | Race Condition for "ORDER NOW" - Second User Fails | 🚧 Not Started | High | Verify first user succeeds, second user gets ephemeral error, offer claimed by first, no order/karma change for second. |
+| Claim & Delivery Flow | Successful Order Claim by Another User (Standard Order) | 🚧 Not Started | High | Verify order status to `claimed`, `runnerId`/`Name`, `timeClaimed` set, (optional `claimedExpiryTimestamp`), Slack message updates (buttons, status), DMs to requester & runner. |
+| Claim & Delivery Flow | Requester Attempts to Claim Own Standard Order | 🚧 Not Started | Medium | Verify ephemeral error, order status/data unchanged. |
+| Claim & Delivery Flow | Successful Delivery by Runner (No Bonus) | 🚧 Not Started | High | Verify order status `delivered`, `timeDelivered`, `bonusMultiplier: 1`. Requester: Reputation & `ordersRequestedCount` updated. Runner: Karma, Reputation & `deliveriesCompletedCount` updated. Slack message (delivered, Karma earned), DMs. |
+| Claim & Delivery Flow | Successful Delivery by Runner (With Bonus) | 🚧 Not Started | High | Verify order `bonusMultiplier > 1`. Requester: Reputation updated (by original cost). Runner: Karma & Reputation updated (with bonus). Counts updated. Slack message (bonus indicated), public bonus announcement, DMs. |
+| Claim & Delivery Flow | Delivery Attempt by Non-Runner User | 🚧 Not Started | Medium | Verify ephemeral error, no Firestore changes. |
+| Claim & Delivery Flow | Order Cancellation by Runner (Post-Claim) | 🚧 Not Started | High | Verify order status to `CANCELLED_RUNNER`, requester Karma refunded, Slack message updates, DMs. |
+| Claim & Delivery Flow | Claimed Order Expiration (Runner Timeout) | 🚧 Not Started | High | **Needs Verification.** Verify order status `EXPIRED_CLAIMED`, requester Karma refunded, Slack message updates, DM to requester. (Requires `orderTimerUpdater` execution). |
+| `/leaderboard`
